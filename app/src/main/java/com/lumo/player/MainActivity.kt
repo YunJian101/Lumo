@@ -24,6 +24,7 @@ import com.lumo.player.data.Session
 import com.lumo.player.ui.FloatingActions
 import com.lumo.player.ui.FnColors
 import com.lumo.player.ui.FnTheme
+import com.lumo.player.ui.screens.DetailRefresh
 import com.lumo.player.ui.screens.DetailScreen
 import com.lumo.player.ui.screens.HomeScreen
 import com.lumo.player.ui.screens.LibraryScreen
@@ -66,6 +67,7 @@ fun AppRoot(loggedIn: Boolean) {
     }
 
     BackHandler(enabled = stack.size > 1) {
+        if (stack.last() is Screen.Player) DetailRefresh.token += 1
         stack.removeAt(stack.lastIndex)
     }
 
@@ -113,7 +115,10 @@ fun AppRoot(loggedIn: Boolean) {
                     title = screen.title,
                     mediaGuid = screen.mediaGuid,
                     itemGuid = screen.itemGuid,
-                    onBack = { stack.removeAt(stack.lastIndex) },
+                    onBack = {
+                        DetailRefresh.token += 1
+                        stack.removeAt(stack.lastIndex)
+                    },
                 )
 
                 Screen.Search -> SearchScreen(

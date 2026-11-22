@@ -61,6 +61,12 @@ import kotlinx.coroutines.launch
 
 object LastPlayed {
     var episodeGuid: String? = null
+    var seasonGuid: String? = null
+    var seriesGuid: String? = null
+}
+
+object DetailRefresh {
+    var token by androidx.compose.runtime.mutableStateOf(0)
 }
 
 @Composable
@@ -86,6 +92,21 @@ fun DetailScreen(    item: MediaItem,
         val index = episodes.indexOfFirst { it.guid == selectedEpisodeGuid }
         if (index >= 0) episodeListState.scrollToItem(index)
     }
+    LaunchedEffect(DetailRefresh.token) {
+        if (DetailRefresh.token > 0) {
+            val guid = selectedEpisodeGuid ?: playInfo?.guid ?: item.guid
+            playInfo = runCatching { FnApi.playInfo(guid) }.getOrNull() ?: playInfo
+            currentEpisode = episodes.firstOrNull { it.guid == guid } ?: currentEpisode
+            stream = playInfo?.mediaGuid?.let { runCatching { FnApi.stream(it) }.getOrNull() } ?: stream
+            val index = episodes.indexOfFirst { it.guid == selectedEpisodeGuid }
+            if (index >= 0) episodeListState.scrollToItem(index)
+            repeat(4) {
+                kotlinx.coroutines.delay(80)
+                if (runCatching { episodeFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+            }
+        }
+    }
+
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -95,9 +116,11 @@ fun DetailScreen(    item: MediaItem,
         ) {
             val index = episodes.indexOfFirst { it.guid == selectedEpisodeGuid }
             if (index >= 0) episodeListState.scrollToItem(index)
-            androidx.compose.runtime.withFrameNanos { }
-            androidx.compose.runtime.withFrameNanos { }
-            runCatching { episodeFocus.requestFocus() }
+            repeat(6) {
+                kotlinx.coroutines.delay(80)
+                androidx.compose.runtime.withFrameNanos { }
+                if (runCatching { episodeFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+            }
         }
     }
     val scope = rememberCoroutineScope()
@@ -141,10 +164,17 @@ fun DetailScreen(    item: MediaItem,
                 detail = FnApi.itemDetail(item.guid)
                 val seasonList = FnApi.seasons(item.guid)
                 seasons = seasonList
-                val season = seasonList.firstOrNull()
+                val lastSeason = seasonList.firstOrNull { it.guid == LastPlayed.seasonGuid }
+                val season = lastSeason ?: seasonList.firstOrNull()
                 episodes = if (season != null) FnApi.episodes(season.guid) else emptyList()
                 selectedSeasonGuid = season?.guid
                 seasonTitle = season?.title?.ifEmpty { "第 1 季" } ?: "第 1 季"
+                val lastEpisode = episodes.firstOrNull { it.guid == LastPlayed.episodeGuid }
+                if (lastEpisode != null) {
+                    selectedEpisodeGuid = lastEpisode.guid
+                    currentEpisode = lastEpisode
+                    playInfo = runCatching { FnApi.playInfo(lastEpisode.guid) }.getOrNull() ?: playInfo
+                }
                 val target = episodes.firstOrNull()?.guid ?: item.playableGuid
                 playInfo = runCatching { FnApi.playInfo(target) }
                     .getOrElse { FnApi.playInfo(item.guid) }
@@ -303,16 +333,23 @@ fun DetailScreen(    item: MediaItem,
                                         }
                                     },
                                     onClick = {
-                                        val info = playInfo
-                                        if (info != null) {
-                                            LastPlayed.episodeGuid = info.guid
-                                            onPlay(detail?.title ?: item.displayTitle, info.guid, info.mediaGuid)
-                                        } else {
-                                            scope.launch {
-                                                runCatching { FnApi.playInfo(item.playableGuid) }
-                                                    .onSuccess { onPlay(item.displayTitle, it.guid, it.mediaGuid) }
-                                                    .onFailure { error = it.message }
-                                            }
+                                        val epGuid = selectedEpisodeGuid
+                                            ?: playInfo?.guid
+                                            ?: item.playableGuid
+                                        scope.launch {
+                                            runCatching { FnApi.playInfo(epGuid) }
+                                                .onSuccess { info ->
+                                                    playInfo = info
+                                                    LastPlayed.episodeGuid = info.guid
+                                                    LastPlayed.seasonGuid = selectedSeasonGuid
+                                                    LastPlayed.seriesGuid = detail?.guid ?: item.guid
+                                                    onPlay(
+                                                        detail?.title ?: item.displayTitle,
+                                                        info.guid,
+                                                        info.mediaGuid,
+                                                    )
+                                                }
+                                                .onFailure { error = it.message }
                                         }
                                     },
                                     modifier = Modifier
