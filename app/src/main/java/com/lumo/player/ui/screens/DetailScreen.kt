@@ -59,9 +59,12 @@ import com.lumo.player.ui.LoadingBox
 import com.lumo.player.ui.PrimaryButton
 import kotlinx.coroutines.launch
 
+object LastPlayed {
+    var episodeGuid: String? = null
+}
+
 @Composable
-fun DetailScreen(
-    item: MediaItem,
+fun DetailScreen(    item: MediaItem,
     onPlay: (String, String, String) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
@@ -74,6 +77,7 @@ fun DetailScreen(
     var persons by remember { mutableStateOf<List<Person>>(emptyList()) }
     var selectedEpisodeGuid by remember { mutableStateOf<String?>(null) }
     var seasonTitle by remember { mutableStateOf("第 1 季") }
+    val episodeFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     var stream by remember { mutableStateOf<com.lumo.player.data.StreamInfo?>(null) }
     var currentEpisode by remember { mutableStateOf<MediaItem?>(null) }
     val episodeListState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -84,6 +88,18 @@ fun DetailScreen(
     }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(loading, episodes, selectedEpisodeGuid) {
+        if (!loading && episodes.isNotEmpty() &&
+            LastPlayed.episodeGuid != null && selectedEpisodeGuid == LastPlayed.episodeGuid
+        ) {
+            val index = episodes.indexOfFirst { it.guid == selectedEpisodeGuid }
+            if (index >= 0) episodeListState.scrollToItem(index)
+            androidx.compose.runtime.withFrameNanos { }
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching { episodeFocus.requestFocus() }
+        }
+    }
     val scope = rememberCoroutineScope()
     val playFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val pageScroll = rememberScrollState()
@@ -110,6 +126,13 @@ fun DetailScreen(
                 seasonTitle = seasonDetail.title.ifEmpty { "第 1 季" }
                 selectedSeasonGuid = seasonDetail.guid
                 seasons = runCatching { FnApi.seasons(seriesGuid) }.getOrDefault(emptyList())
+                val last = LastPlayed.episodeGuid
+                val lastEpisode = episodes.firstOrNull { it.guid == last }
+                if (lastEpisode != null) {
+                    selectedEpisodeGuid = lastEpisode.guid
+                    currentEpisode = lastEpisode
+                    playInfo = runCatching { FnApi.playInfo(lastEpisode.guid) }.getOrNull() ?: playInfo
+                }
                 playInfo = FnApi.playInfo(item.guid)
                 selectedEpisodeGuid = item.guid
                 currentEpisode = item
@@ -139,7 +162,7 @@ fun DetailScreen(
 
     LaunchedEffect(item.guid) { load() }
     LaunchedEffect(loading) {
-        if (!loading) runCatching { playFocus.requestFocus() }
+        if (!loading && LastPlayed.episodeGuid == null) runCatching { playFocus.requestFocus() }
     }
 
     Box(
@@ -282,6 +305,7 @@ fun DetailScreen(
                                     onClick = {
                                         val info = playInfo
                                         if (info != null) {
+                                            LastPlayed.episodeGuid = info.guid
                                             onPlay(detail?.title ?: item.displayTitle, info.guid, info.mediaGuid)
                                         } else {
                                             scope.launch {
@@ -317,6 +341,7 @@ fun DetailScreen(
                                 EpisodeCard(
                                     episode = episode,
                                     selected = episode.guid == selectedEpisodeGuid,
+                                    focusRequester = if (episode.guid == selectedEpisodeGuid) episodeFocus else null,
                                 ) {
                                     scope.launch {
                                         runCatching { FnApi.playInfo(episode.guid) }
@@ -324,6 +349,7 @@ fun DetailScreen(
                                                 playInfo = info
                                                 selectedEpisodeGuid = episode.guid
                                                 currentEpisode = episode
+                                                LastPlayed.episodeGuid = episode.guid
                                                 stream = runCatching { FnApi.stream(info.mediaGuid) }
                                                     .getOrNull()
                                             }
@@ -450,13 +476,25 @@ private fun Tag(text: String) {
 }
 
 @Composable
-private fun EpisodeCard(episode: MediaItem, selected: Boolean, onClick: () -> Unit) {
+private fun EpisodeCard(
+    episode: MediaItem,
+    selected: Boolean,
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    onClick: () -> Unit,
+) {
     Column(Modifier.width(260.dp)) {
         FocusableCard(
             onClick,
             Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f),
+                .aspectRatio(16f / 9f)
+                .then(
+                    if (focusRequester != null) {
+                        Modifier.focusRequester(focusRequester)
+                    } else {
+                        Modifier
+                    },
+                ),
             RoundedCornerShape(9.dp),
         ) {
             Box(Modifier.fillMaxSize().background(FnColors.Surface2)) {
@@ -643,8 +681,7 @@ private fun formatSize(bytes: Long): String = when {
     else -> "$bytes B"
 }
 
-private fun typeLabel(type: String): String = when (type) {
-    "TV" -> "剧集"
+private fun typeLabel(type: String): String = when (type) {    "TV" -> "剧集"
     "Movie" -> "电影"
     "Episode" -> "剧集"
     else -> "视频"
