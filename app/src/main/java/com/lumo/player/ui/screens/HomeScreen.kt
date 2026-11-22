@@ -193,19 +193,12 @@ private fun LibraryCard(library: Library, onClick: () -> Unit) {
                 .aspectRatio(16f / 9f),
             shape = RoundedCornerShape(12.dp),
         ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(FnColors.Surface2)
-                    .padding(8.dp),
-            ) {
-                AsyncImage(
-                    model = FnApi.imageUrl(library.poster, 500),
-                    contentDescription = library.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            AsyncImage(
+                model = FnApi.imageUrl(library.poster, 500),
+                contentDescription = library.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
         Spacer(Modifier.height(6.dp))
         Text(
