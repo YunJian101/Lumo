@@ -101,7 +101,7 @@ fun DetailScreen(
         loading = true
         error = null
         runCatching {
-            if (item.type == "Episode") {
+            if (item.type == "Episode" || item.episodeNumber > 0) {
                 val episodeDetail = FnApi.itemDetail(item.guid)
                 val seasonDetail = FnApi.itemDetail(episodeDetail.parentGuid)
                 val seriesGuid = seasonDetail.parentGuid
@@ -210,7 +210,7 @@ fun DetailScreen(
                                 fontSize = 37.sp,
                                 fontWeight = FontWeight.ExtraBold,
                             )
-                            if (item.type == "Episode") {
+                            if (item.type == "Episode" || item.episodeNumber > 0) {
                                 Spacer(Modifier.height(4.dp))
                                 val code = "S%02dE%02d".format(seasonNumber, episodeNumber)
                                 val epTitle = currentEpisode?.title
