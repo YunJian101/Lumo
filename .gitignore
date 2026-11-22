@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+app/build/
+local.properties
+
+# Android Studio / IDE
+.idea/
+*.iml
+.DS_Store
+
+# Design references
+preview/
+
+# Build outputs and local artifacts
+out/
+preview/*.png
+.tmp/
+.capture/
+.android-home/
+.gradle-home/
+.kotlin/
+.sdk-tmp/
+.edge-profile/
+build.cmd
+repo.xml
+*.apk
+*.aab
+*.log
+
+# Signing
+*.jks
+*.keystore
+key.properties
