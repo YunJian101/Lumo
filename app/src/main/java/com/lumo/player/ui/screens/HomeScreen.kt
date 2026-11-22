@@ -1,6 +1,7 @@
 package com.lumo.player.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -61,11 +65,11 @@ fun HomeScreen(
     var libraries by remember { mutableStateOf<List<Library>>(emptyList()) }
     var recentByLibrary by remember { mutableStateOf<List<Pair<Library, List<MediaItem>>>>(emptyList()) }
     var continueWatching by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    var hero by remember { mutableStateOf<ItemDetail?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val playFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val firstFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val topFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     val scrollState = rememberScrollState()
 
     suspend fun load() {
@@ -78,10 +82,6 @@ fun HomeScreen(
             recentByLibrary = libs.map { library ->
                 library to runCatching { FnApi.items(library.guid, 12) }.getOrDefault(emptyList())
             }.filter { it.second.isNotEmpty() }
-            val firstItem = recentByLibrary.firstOrNull()?.second?.firstOrNull()
-            if (firstItem != null) {
-                hero = runCatching { FnApi.itemDetail(firstItem.guid) }.getOrNull()
-            }
         }.onFailure { error = it.message ?: "加载失败" }
         loading = false
     }
@@ -91,13 +91,13 @@ fun HomeScreen(
         if (!loading) {
             androidx.compose.runtime.withFrameNanos { }
             androidx.compose.runtime.withFrameNanos { }
-            runCatching { playFocus.requestFocus() }
+            runCatching { topFocus.requestFocus() }
             kotlinx.coroutines.delay(60)
             scrollState.scrollTo(0)
         }
     }
 
-    ScreenWithActions(onSearch = onSearch, onSettings = onSettings, contentFocus = playFocus) {
+    ScreenWithActions(onSearch = onSearch, onSettings = onSettings, contentFocus = topFocus) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -111,28 +111,31 @@ fun HomeScreen(
                         .fillMaxSize()
                         .verticalScroll(scrollState),
                 ) {
-                    Spacer(Modifier.height(8.dp))
-                    Hero(
-                        detail = hero,
-                        onPlay = {
-                            val item = recentByLibrary.firstOrNull()?.second?.firstOrNull() ?: return@Hero
-                            scope.launch {
-                                runCatching { FnApi.playInfo(item.playableGuid) }
-                                    .onSuccess { onPlay(item.displayTitle, it.mediaGuid) }
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "媒体库",
+                        color = FnColors.Text,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(horizontal = 43.dp, vertical = 8.dp)
+                            .focusRequester(topFocus)
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    scope.launch { scrollState.animateScrollTo(0) }
+                                }
                             }
-                        },
-                        onInfo = {
-                            recentByLibrary.firstOrNull()?.second?.firstOrNull()?.let(onOpenDetail)
-                        },
-                        playFocus = playFocus,
+                            .focusable(),
                     )
-                    SectionTitle("媒体库")
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 43.dp),
                         horizontalArrangement = Arrangement.spacedBy(13.dp),
                     ) {
-                        items(libraries) { library ->
-                            LibraryCard(library) { onOpenLibrary(library) }
+                        itemsIndexed(libraries) { index, library ->
+                            LibraryCard(
+                                library = library,
+                                focusRequester = if (index == 0) firstFocus else null,
+                            ) { onOpenLibrary(library) }
                         }
                     }
                     SectionTitle("继续观看")
@@ -184,13 +187,24 @@ private fun continueBadge(item: MediaItem): String {
 }
 
 @Composable
-private fun LibraryCard(library: Library, onClick: () -> Unit) {
+private fun LibraryCard(
+    library: Library,
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    onClick: () -> Unit,
+) {
     Column(Modifier.width(220.dp)) {
         FocusableCard(
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f),
+                .aspectRatio(16f / 9f)
+                .then(
+                    if (focusRequester != null) {
+                        Modifier.focusRequester(focusRequester)
+                    } else {
+                        Modifier
+                    },
+                ),
             shape = RoundedCornerShape(12.dp),
         ) {
             AsyncImage(

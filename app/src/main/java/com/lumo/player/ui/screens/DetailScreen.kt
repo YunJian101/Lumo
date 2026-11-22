@@ -565,15 +565,16 @@ private fun PersonCard(person: Person) {
                         .fillMaxSize()
                         .background(
                             Brush.linearGradient(
-                                listOf(Color(0xFF2B5FD9), Color(0xFF4C8DFF)),
+                                listOf(Color(0xFF232E3D), Color(0xFF1A222E)),
                             ),
-                        ),
+                        )
+                        .border(1.dp, Color(0x22FFFFFF), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         person.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 30.sp,
+                        color = Color(0xFF9FB0C7),
+                        fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }
