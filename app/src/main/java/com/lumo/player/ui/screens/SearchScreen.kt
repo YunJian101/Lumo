@@ -32,6 +32,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,9 +50,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun SearchScreen(onOpen: (MediaItem) -> Unit) {
     var allItems by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    var initials by remember { mutableStateOf<Map<String, Char>>(emptyMap()) }
+    var initials by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
-    var selected by remember { mutableStateOf<Char?>(null) }
+    var query by remember { mutableStateOf("") }
     val firstFocus = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -61,7 +64,7 @@ fun SearchScreen(onOpen: (MediaItem) -> Unit) {
             allItems = items
             initials = withContext(Dispatchers.Default) {
                 items.mapNotNull { item ->
-                    pinyinInitial(item.title.ifEmpty { item.displayTitle })?.let { item.guid to it }
+                    pinyinInitials(item.title.ifEmpty { item.displayTitle })?.let { item.guid to it }
                 }.toMap()
             }
         }
@@ -69,35 +72,57 @@ fun SearchScreen(onOpen: (MediaItem) -> Unit) {
         runCatching { firstFocus.requestFocus() }
     }
 
-    val results = if (selected == null) {
+    val results = if (query.isEmpty()) {
         emptyList()
     } else {
-        allItems.filter { initials[it.guid] == selected }
+        allItems.filter { initials[it.guid]?.startsWith(query) == true }
     }
 
     Row(
         Modifier
             .fillMaxSize()
             .background(FnColors.Bg)
+            .onPreviewKeyEvent { event ->
+                if (event.type == androidx.compose.ui.input.key.KeyEventType.KeyDown &&
+                    (event.key == androidx.compose.ui.input.key.Key.Backspace ||
+                        event.key == androidx.compose.ui.input.key.Key.Delete)
+                ) {
+                    query = query.dropLast(1)
+                    true
+                } else {
+                    false
+                }
+            }
             .padding(horizontal = 43.dp, vertical = 20.dp),
     ) {
         Column(Modifier.width(330.dp)) {
             Text("搜索", color = FnColors.Text, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
             Spacer(Modifier.height(4.dp))
-            Text("按首字母筛选（中英文）", color = FnColors.Sub, fontSize = 12.sp)
-            Spacer(Modifier.height(16.dp))
+            Text("按拼音首字母连续搜索（中英文）", color = FnColors.Sub, fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (query.isEmpty()) "输入首字母，例如 A S D S" else query.toCharArray().joinToString(" "),
+                color = if (query.isEmpty()) FnColors.Sub else FnColors.Accent,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(12.dp))
             val keys = ('A'..'Z').map { it.toString() } + "撤销"
-            keys.chunked(4).forEachIndexed { rowIndex, rowKeys ->
+            keys.chunked(4).forEach { rowKeys ->
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     rowKeys.forEach { key ->
                         KeyButton(
                             label = key,
-                            selected = key.length == 1 && selected == key[0],
+                            selected = key.length == 1 && query.lastOrNull() == key[0],
                             modifier = if (key == "A") Modifier.focusRequester(firstFocus) else Modifier,
                         ) {
-                            selected = if (key == "撤销") null else key[0]
+                            query = if (key == "撤销") {
+                                query.dropLast(1)
+                            } else {
+                                query + key
+                            }
                         }
                     }
                 }
@@ -110,8 +135,8 @@ fun SearchScreen(onOpen: (MediaItem) -> Unit) {
         Box(Modifier.fillMaxSize()) {
             when {
                 loading -> LoadingBox()
-                selected == null -> Text(
-                    "选择一个字母开始搜索",
+                query.isEmpty() -> Text(
+                    "选择字母开始搜索，可连续输入",
                     color = FnColors.Sub,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(8.dp),
@@ -177,17 +202,22 @@ private fun KeyButton(
     }
 }
 
-private fun pinyinInitial(title: String): Char? {
+private fun pinyinInitials(title: String): String? {
     if (title.isBlank()) return null
-    val first = title.trim().first()
-    if (first.code < 128) {
-        return if (first.isLetter()) first.uppercaseChar() else null
+    val builder = StringBuilder()
+    val transliterator = if (Build.VERSION.SDK_INT >= 29) {
+        runCatching { android.icu.text.Transliterator.getInstance("Han-Latin; Latin-ASCII") }.getOrNull()
+    } else {
+        null
     }
-    if (Build.VERSION.SDK_INT < 29) return null
-    return runCatching {
-        val transliterator = android.icu.text.Transliterator.getInstance("Han-Latin; Latin-ASCII")
-        transliterator.transliterate(first.toString())
-            .firstOrNull { it.isLetter() }
-            ?.uppercaseChar()
-    }.getOrNull()
+    title.forEach { ch ->
+        when {
+            ch.code < 128 -> if (ch.isLetter()) builder.append(ch.uppercaseChar())
+            transliterator != null -> {
+                val latin = transliterator.transliterate(ch.toString())
+                latin.firstOrNull { it.isLetter() }?.let { builder.append(it.uppercaseChar()) }
+            }
+        }
+    }
+    return builder.toString().ifEmpty { null }
 }
