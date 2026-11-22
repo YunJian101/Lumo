@@ -199,9 +199,11 @@ fun DetailScreen(
                             )
                         }
                         Column(Modifier.padding(top = 4.dp)) {
+                            val episodeNumber = currentEpisode?.episodeNumber?.takeIf { it > 0 }
+                                ?: item.episodeNumber
                             val mainTitle = if (item.type == "Episode") {
-                                currentEpisode?.title?.ifEmpty { "第 ${item.episodeNumber} 集" }
-                                    ?: item.title.ifEmpty { "第 ${item.episodeNumber} 集" }
+                                currentEpisode?.title?.ifEmpty { "第 $episodeNumber 集" }
+                                    ?: item.title.ifEmpty { "第 $episodeNumber 集" }
                             } else {
                                 detail?.title ?: item.displayTitle
                             }
@@ -214,7 +216,7 @@ fun DetailScreen(
                             if (item.type == "Episode") {
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    "${detail?.title ?: ""} · 第 ${item.episodeNumber} 集",
+                                    "${detail?.title ?: ""} · 第 $episodeNumber 集",
                                     color = FnColors.Sub,
                                     fontSize = 13.sp,
                                 )
@@ -249,7 +251,8 @@ fun DetailScreen(
                                         Tag("${info.audioCodec.uppercase()} ${info.channels}ch")
                                     }
                                 }
-                                if (item.ts > 0) Tag("已看 ${item.ts / 60} 分钟")
+                                val watchedTs = playInfo?.ts ?: item.ts
+                                if (watchedTs > 0) Tag("已看 ${watchedTs / 60} 分钟")
                             }
                             Spacer(Modifier.height(12.dp))
                             Text(
