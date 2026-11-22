@@ -97,7 +97,7 @@ fun HomeScreen(
         }
     }
 
-    ScreenWithActions(onSearch = onSearch, onSettings = onSettings, contentFocus = topFocus) {
+    ScreenWithActions(onSearch = onSearch, onSettings = onSettings, contentFocus = firstFocus) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -112,15 +112,17 @@ fun HomeScreen(
                         .verticalScroll(scrollState),
                 ) {
                     Spacer(Modifier.height(16.dp))
+                    var titleFocused by remember { mutableStateOf(false) }
                     Text(
                         "媒体库",
-                        color = FnColors.Text,
+                        color = if (titleFocused) FnColors.Accent else FnColors.Text,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .padding(horizontal = 43.dp, vertical = 8.dp)
                             .focusRequester(topFocus)
                             .onFocusChanged {
+                                titleFocused = it.isFocused
                                 if (it.isFocused) {
                                     scope.launch { scrollState.animateScrollTo(0) }
                                 }
