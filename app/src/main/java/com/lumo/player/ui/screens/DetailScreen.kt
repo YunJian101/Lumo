@@ -269,7 +269,9 @@ fun DetailScreen(
                                 PrimaryButton(
                                     text = run {
                                         val ts = playInfo?.ts ?: 0
-                                        val duration = playInfo?.duration ?: 0
+                                        val duration = playInfo?.duration?.takeIf { it > 0 }
+                                            ?: currentEpisode?.duration?.takeIf { it > 0 }
+                                            ?: item.duration
                                         val remaining = if (duration > ts) (duration - ts) / 60 else 0
                                         when {
                                             ts > 0 && remaining > 0 -> "继续（剩余 $remaining 分钟）"
