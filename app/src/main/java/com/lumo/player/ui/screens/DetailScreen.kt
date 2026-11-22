@@ -201,12 +201,9 @@ fun DetailScreen(
                         Column(Modifier.padding(top = 4.dp)) {
                             val episodeNumber = currentEpisode?.episodeNumber?.takeIf { it > 0 }
                                 ?: item.episodeNumber
-                            val mainTitle = if (item.type == "Episode") {
-                                currentEpisode?.title?.ifEmpty { "第 $episodeNumber 集" }
-                                    ?: item.title.ifEmpty { "第 $episodeNumber 集" }
-                            } else {
-                                detail?.title ?: item.displayTitle
-                            }
+                            val seasonNumber = currentEpisode?.seasonNumber?.takeIf { it > 0 }
+                                ?: item.seasonNumber
+                            val mainTitle = detail?.title ?: item.displayTitle
                             Text(
                                 mainTitle,
                                 color = FnColors.Text,
@@ -215,8 +212,11 @@ fun DetailScreen(
                             )
                             if (item.type == "Episode") {
                                 Spacer(Modifier.height(4.dp))
+                                val code = "S%02dE%02d".format(seasonNumber, episodeNumber)
+                                val epTitle = currentEpisode?.title
+                                    ?.takeIf { it.isNotEmpty() && it != "第 $episodeNumber 集" }
                                 Text(
-                                    "${detail?.title ?: ""} · 第 $episodeNumber 集",
+                                    if (epTitle != null) "$code · $epTitle" else code,
                                     color = FnColors.Sub,
                                     fontSize = 13.sp,
                                 )
@@ -256,8 +256,7 @@ fun DetailScreen(
                             }
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                (currentEpisode?.overview?.takeIf { it.isNotBlank() } ?: item.overview)
-                                    .ifEmpty { detail?.overview ?: "" },
+                                detail?.overview ?: item.overview,
                                 color = Color(0xFFC3CFDF),
                                 fontSize = 13.sp,
                                 lineHeight = 22.sp,
