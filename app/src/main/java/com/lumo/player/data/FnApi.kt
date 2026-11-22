@@ -261,6 +261,16 @@ object FnApi {
         return (0 until array.length()).map { index -> parseItem(array.getJSONObject(index)) }
     }
 
+    suspend fun reportProgress(itemGuid: String, mediaGuid: String, ts: Long) {
+        if (itemGuid.isEmpty() || mediaGuid.isEmpty()) return
+        val body = JSONObject()
+            .put("item_guid", itemGuid)
+            .put("media_guid", mediaGuid)
+            .put("ts", ts)
+            .toString()
+        runCatching { call("POST", "/v/api/v1/play/record", body) }
+    }
+
     suspend fun playHistory(): List<MediaItem> {
         val result = call("GET", "/v/api/v1/play/list")
         val array = result.optJSONArray("data") ?: return emptyList()

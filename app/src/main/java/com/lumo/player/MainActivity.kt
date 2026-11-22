@@ -37,7 +37,7 @@ sealed interface Screen {
     data object Home : Screen
     data class LibraryPage(val library: Library) : Screen
     data class Detail(val item: MediaItem) : Screen
-    data class Player(val title: String, val mediaGuid: String) : Screen
+    data class Player(val title: String, val mediaGuid: String, val itemGuid: String = "") : Screen
     data object Search : Screen
     data object Settings : Screen
 }
@@ -88,7 +88,7 @@ fun AppRoot(loggedIn: Boolean) {
                 Screen.Home -> HomeScreen(
                     onOpenLibrary = { stack.add(Screen.LibraryPage(it)) },
                     onOpenDetail = { stack.add(Screen.Detail(it)) },
-                    onPlay = { title, guid -> stack.add(Screen.Player(title, guid)) },
+                    onPlay = { title, guid -> stack.add(Screen.Player(title, guid, "")) },
                     onSearch = { stack.add(Screen.Search) },
                     onSettings = { stack.add(Screen.Settings) },
                 )
@@ -102,7 +102,9 @@ fun AppRoot(loggedIn: Boolean) {
 
                 is Screen.Detail -> DetailScreen(
                     item = screen.item,
-                    onPlay = { title, guid -> stack.add(Screen.Player(title, guid)) },
+                    onPlay = { title, itemGuid, mediaGuid ->
+                        stack.add(Screen.Player(title, mediaGuid, itemGuid))
+                    },
                     onSearch = { stack.add(Screen.Search) },
                     onSettings = { stack.add(Screen.Settings) },
                 )
@@ -110,6 +112,7 @@ fun AppRoot(loggedIn: Boolean) {
                 is Screen.Player -> PlayerScreen(
                     title = screen.title,
                     mediaGuid = screen.mediaGuid,
+                    itemGuid = screen.itemGuid,
                     onBack = { stack.removeAt(stack.lastIndex) },
                 )
 

@@ -62,7 +62,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DetailScreen(
     item: MediaItem,
-    onPlay: (String, String) -> Unit,
+    onPlay: (String, String, String) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -280,11 +280,11 @@ fun DetailScreen(
                                     onClick = {
                                         val info = playInfo
                                         if (info != null) {
-                                            onPlay(detail?.title ?: item.displayTitle, info.mediaGuid)
+                                            onPlay(detail?.title ?: item.displayTitle, info.guid, info.mediaGuid)
                                         } else {
                                             scope.launch {
                                                 runCatching { FnApi.playInfo(item.playableGuid) }
-                                                    .onSuccess { onPlay(item.displayTitle, it.mediaGuid) }
+                                                    .onSuccess { onPlay(item.displayTitle, it.guid, it.mediaGuid) }
                                                     .onFailure { error = it.message }
                                             }
                                         }

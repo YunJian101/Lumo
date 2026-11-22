@@ -53,12 +53,14 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.lumo.player.data.FnApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
 fun PlayerScreen(
     title: String,
     mediaGuid: String,
+    itemGuid: String = "",
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -87,8 +89,23 @@ fun PlayerScreen(
         }
         player.addListener(listener)
         onDispose {
+            val ts = (player.currentPosition / 1000).coerceAtLeast(0)
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { FnApi.reportProgress(itemGuid, mediaGuid, ts) }
+            }
             player.removeListener(listener)
             player.release()
+        }
+    }
+
+    LaunchedEffect(itemGuid, mediaGuid) {
+        while (true) {
+            delay(10_000)
+            if (player.isPlaying) {
+                runCatching {
+                    FnApi.reportProgress(itemGuid, mediaGuid, (player.currentPosition / 1000).coerceAtLeast(0))
+                }
+            }
         }
     }
 
