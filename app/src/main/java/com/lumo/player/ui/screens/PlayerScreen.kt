@@ -96,6 +96,7 @@ fun PlayerScreen(
     var liveVideo by remember { mutableStateOf("") }
     var liveAudio by remember { mutableStateOf("") }
     var bufferedMs by remember { mutableLongStateOf(0L) }
+    var decoderInfo by remember { mutableStateOf("") }
     var nextItem by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
     var nextMediaGuid by remember { mutableStateOf("") }
     var episodes by remember { mutableStateOf<List<com.lumo.player.data.MediaItem>>(emptyList()) }
@@ -117,8 +118,13 @@ fun PlayerScreen(
         if (itemGuid.isNotEmpty()) {
             runCatching {
                 val d = com.lumo.player.data.FnApi.itemDetail(itemGuid)
-                val code = "S%02dE%02d".format(d.seasonNumber, d.episodeNumber)
-                episodeLabel = if (d.title.isNotEmpty()) "$code · ${d.title}" else code
+                val hasEpisode = d.seasonNumber > 0 || d.episodeNumber > 0
+                val code = if (hasEpisode) "S%02dE%02d".format(d.seasonNumber, d.episodeNumber) else ""
+                episodeLabel = when {
+                    code.isEmpty() -> ""
+                    d.title.isNotEmpty() -> "$code · ${d.title}"
+                    else -> code
+                }
                 val season = com.lumo.player.data.FnApi.itemDetail(d.parentGuid)
                 val eps = com.lumo.player.data.FnApi.episodes(season.guid)
                 episodes = eps
@@ -311,6 +317,9 @@ fun PlayerScreen(
                     append(a.sampleMimeType?.substringAfterLast('/') ?: "audio")
                     append(" ").append(a.channelCount).append("ch")
                 }
+            }
+            if (decoderInfo.isEmpty()) {
+                decoderInfo = buildDecoderInfo(player)
             }
             delay(500)
         }
@@ -513,12 +522,34 @@ fun PlayerScreen(
                     Text(hint, color = Color(0xFFFFD479), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                 }
                 if (showInfo) {
-                    Text(
-                        "${liveVideo.ifEmpty { "--" }} · ${liveAudio.ifEmpty { "--" }} · 缓冲 ${bufferedMs / 1000}s · ${String.format(Locale.US, "%.1f", speedMb)} MB/s",
-                        color = Color(0xFFC9D5E6),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
+                    val srcVideo = stream?.let {
+                        "${it.width}x${it.height} · ${it.videoCodec.uppercase()} · ${it.fps} · ${it.bitrate / 1_000_000}Mbps · ${it.hdr}"
+                    } ?: "--"
+                    val srcAudio = stream?.let {
+                        "${it.audioCodec.uppercase()} · ${it.channels}ch · ${it.audioSampleRate}Hz"
+                    } ?: "--"
+                    Column(Modifier.padding(top = 6.dp)) {
+                        Text(
+                            "视频：${liveVideo.ifEmpty { srcVideo }}",
+                            color = Color(0xFFC9D5E6),
+                            fontSize = 11.sp,
+                        )
+                        Text(
+                            "音频：${liveAudio.ifEmpty { srcAudio }}",
+                            color = Color(0xFFC9D5E6),
+                            fontSize = 11.sp,
+                        )
+                        Text(
+                            "解码：${decoderInfo.ifEmpty { "未开始播放" }}",
+                            color = Color(0xFFC9D5E6),
+                            fontSize = 11.sp,
+                        )
+                        Text(
+                            "缓冲 ${bufferedMs / 1000}s · ${String.format(Locale.US, "%.1f", speedMb)} MB/s · ${if (qualityLabel == "原画") "直连" else "转码 $qualityLabel"}",
+                            color = Color(0xFF9FB0C7),
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
             }
         }
@@ -866,6 +897,39 @@ private fun mapSubtitleLanguage(value: String): String? {
         s == "ru" || s == "rus" -> "俄语"
         else -> null
     }
+}
+
+private fun buildDecoderInfo(player: ExoPlayer): String {
+    fun decoderName(audio: Boolean): String = runCatching {
+        val name = if (audio) "getAudioDecoderName" else "getVideoDecoderName"
+        val method = player.javaClass.methods.firstOrNull { it.name == name } ?: return ""
+        method.invoke(player) as? String ?: ""
+    }.getOrDefault("")
+
+    fun kind(name: String): String {
+        if (name.isEmpty()) return ""
+        val hw = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.media.MediaCodecList(android.media.MediaCodecList.ALL_CODECS)
+                    .codecInfos
+                    .firstOrNull { it.name == name }
+                    ?.isHardwareAccelerated
+            } else {
+                null
+            }
+        }.getOrNull()
+        val label = when (hw) {
+            true -> "硬解"
+            false -> "软解"
+            null -> if (name.contains("google") || name.contains("sw")) "软解" else "硬解"
+        }
+        return "$label($name)"
+    }
+
+    val items = mutableListOf<String>()
+    kind(decoderName(false)).takeIf { it.isNotEmpty() }?.let { items += "视频 $it" }
+    kind(decoderName(true)).takeIf { it.isNotEmpty() }?.let { items += "音频 $it" }
+    return items.joinToString(" · ")
 }
 
 private fun formatTime(millis: Long): String {
