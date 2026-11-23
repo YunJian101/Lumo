@@ -58,6 +58,7 @@ import com.lumo.player.data.FnApi
 import com.lumo.player.ui.focusGlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Composable
@@ -69,7 +70,8 @@ fun PlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val player = remember { buildPlayer(context) }
+    val speedState = remember { SpeedState() }
+    val player = remember { buildPlayer(context, speedState) }
     var playing by remember { mutableStateOf(false) }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -83,6 +85,13 @@ fun PlayerScreen(
     var hint by remember { mutableStateOf("") }
     var interactionTick by remember { mutableIntStateOf(0) }
     var controlFocused by remember { mutableStateOf(false) }
+    var speedBps by remember { mutableLongStateOf(0L) }
+    var prevEpisode by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
+    var nextEpisode by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
+    var curItemGuid by remember { mutableStateOf(itemGuid) }
+    var curMediaGuid by remember { mutableStateOf(mediaGuid) }
+    var ended by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val onControlFocus: (Boolean) -> Unit = { focused ->
         controlFocused = focused
         if (focused) interactionTick += 1
@@ -92,10 +101,44 @@ fun PlayerScreen(
 
     LaunchedEffect(itemGuid) {
         if (itemGuid.isNotEmpty()) {
-            runCatching { com.lumo.player.data.FnApi.itemDetail(itemGuid) }.onSuccess { d ->
+            runCatching {
+                val d = com.lumo.player.data.FnApi.itemDetail(itemGuid)
                 val code = "S%02dE%02d".format(d.seasonNumber, d.episodeNumber)
                 episodeLabel = if (d.title.isNotEmpty()) "$code · ${d.title}" else code
+                val season = com.lumo.player.data.FnApi.itemDetail(d.parentGuid)
+                val eps = com.lumo.player.data.FnApi.episodes(season.guid)
+                val idx = eps.indexOfFirst { it.guid == itemGuid }
+                if (idx >= 0) {
+                    prevEpisode = eps.getOrNull(idx - 1)
+                    nextEpisode = eps.getOrNull(idx + 1)
+                }
             }
+        }
+    }
+
+    suspend fun playEpisode(ep: com.lumo.player.data.MediaItem) {
+        runCatching { com.lumo.player.data.FnApi.playInfo(ep.guid) }.onSuccess { info ->
+            curItemGuid = info.guid
+            curMediaGuid = info.mediaGuid
+            player.setMediaItem(ExoMediaItem.fromUri(com.lumo.player.data.FnApi.playUrl(info.mediaGuid)))
+            player.prepare()
+            player.playWhenReady = true
+            val code = "S%02dE%02d".format(ep.seasonNumber, ep.episodeNumber)
+            episodeLabel = if (ep.title.isNotEmpty() && ep.title != "第 ${ep.episodeNumber} 集") {
+                "$code · ${ep.title}"
+            } else {
+                code
+            }
+        }
+    }
+
+    LaunchedEffect(ended) {
+        if (ended) {
+            val nxt = nextEpisode
+            if (nxt != null) {
+                playEpisode(nxt)
+            }
+            ended = false
         }
     }
 
@@ -126,6 +169,7 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == androidx.media3.common.Player.STATE_BUFFERING
                 if (state == androidx.media3.common.Player.STATE_READY) error = null
+                if (state == androidx.media3.common.Player.STATE_ENDED) ended = true
             }
         }
         player.addListener(listener)
@@ -167,6 +211,7 @@ fun PlayerScreen(
             playing = player.isPlaying
             position = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.coerceAtLeast(0L)
+            speedBps = speedState.bps
             delay(500)
         }
     }
@@ -266,6 +311,12 @@ fun PlayerScreen(
                     Text(episodeLabel.ifEmpty { title }, color = Color(0xFFB9C6D8), fontSize = 11.sp)
                 }
                 Spacer(Modifier.weight(1f))
+                Text(
+                    String.format(Locale.US, "%.1f Mbps", speedBps / 1_000_000.0),
+                    color = Color(0xFF9FB0C7),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(end = 10.dp),
+                )
                 val info = stream
                 if (info != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -327,6 +378,16 @@ fun PlayerScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    prevEpisode?.let { p ->
+                        ActionPill("上一集", onFocusChange = onControlFocus) {
+                            scope.launch { playEpisode(p) }
+                        }
+                    }
+                    nextEpisode?.let { n ->
+                        ActionPill("下一集", onFocusChange = onControlFocus) {
+                            scope.launch { playEpisode(n) }
+                        }
+                    }
                     ActionPill("画质 · 原画", onFocusChange = onControlFocus) { hint = "画质切换暂未开放" }
                     ActionPill("音轨 · 默认", onFocusChange = onControlFocus) { hint = "音轨切换暂未开放" }
                     ActionPill("字幕 · 关", onFocusChange = onControlFocus) { hint = "字幕切换暂未开放" }
@@ -431,14 +492,24 @@ private fun formatTime(millis: Long): String {
     else String.format(Locale.US, "%02d:%02d", m, s)
 }
 
-private fun buildPlayer(context: Context): ExoPlayer {
+private fun buildPlayer(context: Context, speed: SpeedState): ExoPlayer {
     val dataSourceFactory = DefaultDataSource.Factory(
         context,
         OkHttpDataSource.Factory(FnApi.httpClient()),
     )
+    val meter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
+    meter.addEventListener(android.os.Handler(android.os.Looper.getMainLooper())) { _, _, bitrate ->
+        speed.bps = bitrate
+    }
     val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context)
         .setEnableDecoderFallback(true)
     return ExoPlayer.Builder(context, renderersFactory)
         .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+        .setBandwidthMeter(meter)
         .build()
+}
+
+class SpeedState {
+    @Volatile
+    var bps: Long = 0L
 }

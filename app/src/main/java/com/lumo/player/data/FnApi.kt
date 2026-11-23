@@ -272,6 +272,15 @@ object FnApi {
         runCatching { call("POST", "/v/api/v1/play/record", body) }
     }
 
+    suspend fun playQuality(mediaGuid: String, level: Int): Boolean {
+        val body = JSONObject()
+            .put("media_guid", mediaGuid)
+            .put("level", level)
+            .toString()
+        val result = runCatching { call("POST", "/v/api/v1/play/quality", body) }.getOrNull()
+        return result?.optInt("code") == 0
+    }
+
     suspend fun playHistory(): List<MediaItem> {
         val result = call("GET", "/v/api/v1/play/list")
         val array = result.optJSONArray("data") ?: return emptyList()
