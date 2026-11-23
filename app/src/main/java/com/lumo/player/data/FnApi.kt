@@ -125,7 +125,7 @@ object FnApi {
         .addInterceptor { chain ->
             val request = chain.request()
             val path = request.url.encodedPath
-            val needsAuth = path.contains("/sys/img") || path.contains("/media/range")
+            val needsAuth = path.contains("/sys/img") || path.contains("/media/")
             if (token.isNotEmpty() && needsAuth) {
                 chain.proceed(request.newBuilder().header("Authorization", token).build())
             } else {
