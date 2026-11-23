@@ -314,11 +314,11 @@ fun PlayerScreen(
             val a = player.audioFormat
             if (a != null) {
                 liveAudio = buildString {
-                    append(a.sampleMimeType?.substringAfterLast('/') ?: "audio")
+                    append(mimeShort(a.sampleMimeType))
                     append(" ").append(a.channelCount).append("ch")
                 }
             }
-            if (decoderInfo.isEmpty()) {
+            if (decoderInfo.isEmpty() || decoderInfo.startsWith("未开始")) {
                 decoderInfo = buildDecoderInfo(player)
             }
             delay(500)
@@ -522,35 +522,41 @@ fun PlayerScreen(
                     Text(hint, color = Color(0xFFFFD479), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                 }
                 if (showInfo) {
-                    val srcVideo = stream?.let {
-                        "${it.width}x${it.height} · ${it.videoCodec.uppercase()} · ${it.fps} · ${it.bitrate / 1_000_000}Mbps · ${it.hdr}"
-                    } ?: "--"
-                    val srcAudio = stream?.let {
-                        "${it.audioCodec.uppercase()} · ${it.channels}ch · ${it.audioSampleRate}Hz"
-                    } ?: "--"
-                    Column(Modifier.padding(top = 6.dp)) {
-                        Text(
-                            "视频：${liveVideo.ifEmpty { srcVideo }}",
-                            color = Color(0xFFC9D5E6),
-                            fontSize = 11.sp,
-                        )
-                        Text(
-                            "音频：${liveAudio.ifEmpty { srcAudio }}",
-                            color = Color(0xFFC9D5E6),
-                            fontSize = 11.sp,
-                        )
-                        Text(
-                            "解码：${decoderInfo.ifEmpty { "未开始播放" }}",
-                            color = Color(0xFFC9D5E6),
-                            fontSize = 11.sp,
-                        )
-                        Text(
-                            "缓冲 ${bufferedMs / 1000}s · ${String.format(Locale.US, "%.1f", speedMb)} MB/s · ${if (qualityLabel == "原画") "直连" else "转码 $qualityLabel"}",
-                            color = Color(0xFF9FB0C7),
-                            fontSize = 11.sp,
-                        )
-                    }
+                    // 信息由独立卡片展示
                 }
+            }
+        }
+
+        if (showInfo) {
+            val srcVideo = stream?.let {
+                "${it.width}x${it.height} · ${it.videoCodec.uppercase()} · ${it.fps} · ${it.bitrate / 1_000_000}Mbps · ${it.hdr}"
+            } ?: "--"
+            val srcAudio = stream?.let {
+                "${it.audioCodec.uppercase()} · ${it.channels}ch · ${it.audioSampleRate}Hz"
+            } ?: "--"
+            Column(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 50.dp)
+                    .width(420.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xE6101826))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("播放信息", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("视频流", color = Color(0xFF9FB0C7), fontSize = 11.sp)
+                Text(liveVideo.ifEmpty { srcVideo }, color = Color(0xFFE7EEF8), fontSize = 12.sp)
+                Text("音频流", color = Color(0xFF9FB0C7), fontSize = 11.sp)
+                Text(liveAudio.ifEmpty { srcAudio }, color = Color(0xFFE7EEF8), fontSize = 12.sp)
+                Text("解码方式", color = Color(0xFF9FB0C7), fontSize = 11.sp)
+                Text(decoderInfo.ifEmpty { "未开始播放" }, color = Color(0xFFE7EEF8), fontSize = 12.sp)
+                Text("状态", color = Color(0xFF9FB0C7), fontSize = 11.sp)
+                Text(
+                    "缓冲 ${bufferedMs / 1000}s · ${String.format(Locale.US, "%.1f", speedMb)} MB/s · ${if (qualityLabel == "原画") "直连" else "转码 $qualityLabel"}",
+                    color = Color(0xFFE7EEF8),
+                    fontSize = 12.sp,
+                )
             }
         }
 
@@ -897,6 +903,19 @@ private fun mapSubtitleLanguage(value: String): String? {
         s == "ru" || s == "rus" -> "俄语"
         else -> null
     }
+}
+
+private fun mimeShort(mime: String?): String = when {
+    mime == null -> "音频"
+    mime.contains("mp4a") || mime.contains("aac") -> "AAC"
+    mime.contains("ac-3") -> "AC3"
+    mime.contains("ec-3") -> "EAC3"
+    mime.contains("opus") -> "Opus"
+    mime.contains("flac") -> "FLAC"
+    mime.contains("mp3") -> "MP3"
+    mime.contains("truehd") -> "TrueHD"
+    mime.contains("dts") -> "DTS"
+    else -> mime.substringAfterLast('/')
 }
 
 private fun buildDecoderInfo(player: ExoPlayer): String {
