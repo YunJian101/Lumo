@@ -87,6 +87,10 @@ fun PlayerScreen(
     var controlFocused by remember { mutableStateOf(false) }
     var speedMb by remember { mutableStateOf(0.0) }
     var panel by remember { mutableStateOf<String?>(null) }
+    var qualityLabel by remember { mutableStateOf("原画") }
+    var activeRes by remember { mutableStateOf("") }
+    var selectedQuality by remember { mutableStateOf<com.lumo.player.data.Quality?>(null) }
+    var retryOnce by remember { mutableStateOf(false) }
     var episodes by remember { mutableStateOf<List<com.lumo.player.data.MediaItem>>(emptyList()) }
     var epIndex by remember { mutableIntStateOf(-1) }
     val prevEpisode = episodes.getOrNull(epIndex - 1)
@@ -138,6 +142,35 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(retryOnce) {
+        if (retryOnce) {
+            val q = selectedQuality
+            val s = stream
+            if (q != null && s != null) {
+                val pos = player.currentPosition
+                val link = FnApi.transcodeLink(
+                    curMediaGuid,
+                    s.videoGuid,
+                    s.videoCodec,
+                    q.resolution,
+                    q.bitrate,
+                    pos / 1000,
+                    s.audioGuid,
+                    s.audioCodec,
+                    s.channels,
+                )
+                if (link != null) {
+                    player.setMediaItem(ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link))
+                    player.prepare()
+                    player.seekTo(pos)
+                    player.playWhenReady = true
+                    error = null
+                }
+            }
+            retryOnce = false
+        }
+    }
+
     LaunchedEffect(ended) {
         if (ended) {
             val nxt = nextEpisode
@@ -170,6 +203,7 @@ fun PlayerScreen(
         val listener = object : androidx.media3.common.Player.Listener {
             override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                 error = e.errorCodeName
+                if (selectedQuality != null && !retryOnce) retryOnce = true
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -331,10 +365,12 @@ fun PlayerScreen(
                 if (info != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         Pill(
-                            when {
-                                info.width >= 3800 -> "4K"
-                                info.width >= 1900 -> "1080P"
-                                else -> "SD"
+                            activeRes.ifEmpty {
+                                when {
+                                    info.width >= 3800 -> "4K"
+                                    info.width >= 1900 -> "1080P"
+                                    else -> "SD"
+                                }
                             },
                         )
                         if (info.videoCodec.isNotEmpty()) Pill(info.videoCodec.uppercase())
@@ -398,7 +434,7 @@ fun PlayerScreen(
                             scope.launch { playEpisode(n) }
                         }
                     }
-                    ActionPill("画质 · 原画", onFocusChange = onControlFocus) { panel = "quality" }
+                    ActionPill("画质 · $qualityLabel", onFocusChange = onControlFocus) { panel = "quality" }
                     ActionPill("音轨 · 默认", onFocusChange = onControlFocus) { panel = "audio" }
                     ActionPill("字幕 · 关", onFocusChange = onControlFocus) { panel = "subtitle" }
                     ActionPill("选集", onFocusChange = onControlFocus) { onBack() }
@@ -437,6 +473,9 @@ fun PlayerScreen(
             when (p) {
                 "quality" -> {
                     options += "原画" to {
+                        qualityLabel = "原画"
+                        activeRes = ""
+                        selectedQuality = null
                         val pos = player.currentPosition
                         player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
                         player.prepare()
@@ -468,6 +507,9 @@ fun PlayerScreen(
                                             s.channels,
                                         )
                                         if (link != null) {
+                                            qualityLabel = label
+                                            activeRes = label
+                                            selectedQuality = q
                                             val pos = player.currentPosition
                                             player.setMediaItem(
                                                 ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link),
