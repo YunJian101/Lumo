@@ -19,8 +19,8 @@ android {
         applicationId = "com.lumo.player"
         minSdk = 23
         targetSdk = 35
-        versionCode = 120
-        versionName = "1.5.0"
+        versionCode = 121
+        versionName = "1.5.1"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "FN_API_KEY", "\"${localProps.getProperty("fn.apiKey") ?: ""}\"")
         buildConfigField("String", "FN_API_SECRET", "\"${localProps.getProperty("fn.apiSecret") ?: ""}\"")

@@ -822,20 +822,22 @@ private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Bool
 
 private fun formatSubtitleLabel(t: com.lumo.player.data.SubtitleTrack): String {
     val title = t.title.trim()
-    val lang = t.language.trim().lowercase()
-    if (title.contains("双语")) return "中英双语"
-    if (title.equals("cc", true)) return "CC 字幕"
-    val base = when {
-        title.isNotEmpty() && !title.equals(lang, true) -> title
-        lang.startsWith("zh-cn") || lang.startsWith("zh-hans") || lang == "zh" -> "简体中文"
-        lang.startsWith("zh-tw") || lang.startsWith("zh-hant") -> "繁体中文"
-        lang.startsWith("en") -> "英语"
-        lang.startsWith("ja") -> "日语"
-        lang.startsWith("ko") -> "韩语"
-        lang.startsWith("und") || lang.isEmpty() -> "字幕"
-        else -> lang.uppercase()
-    }
-    return base
+    val raw = (title + "." + t.language).lowercase()
+    val tokens = raw.split('.', '_', '-', ' ')
+    fun has(vararg keys: String) = keys.any { k -> tokens.any { it == k } }
+    if (raw.contains("双语")) return "中英双语"
+    if (has("cc") || raw.contains("cc")) return "CC 字幕"
+    if (has("zh", "cn", "chs", "hans", "zhcn") || raw.contains("zh-cn") || raw.contains("简体")) return "简体中文"
+    if (has("tw", "cht", "hant") || raw.contains("zh-tw") || raw.contains("繁体")) return "繁体中文"
+    if (has("en", "eng")) return "英语"
+    if (has("ja", "jpn")) return "日语"
+    if (has("ko", "kor")) return "韩语"
+    if (has("fr", "fra", "fre")) return "法语"
+    if (has("de", "deu", "ger")) return "德语"
+    if (has("es", "spa")) return "西班牙语"
+    if (has("ru", "rus")) return "俄语"
+    if (title.isNotEmpty() && title.any { it.code > 127 }) return title
+    return "字幕"
 }
 
 private fun formatTime(millis: Long): String {
