@@ -661,6 +661,7 @@ fun PlayerScreen(
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xE6101826))
                     .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
                     when (p) {
