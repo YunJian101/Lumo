@@ -284,6 +284,25 @@ object FnApi {
         return result?.optInt("code") == 0
     }
 
+    suspend fun resetQuality(
+        mediaGuid: String,
+        resolution: String,
+        bitrate: Long,
+        startTimestamp: Long,
+    ): Boolean {
+        val body = JSONObject()
+            .put("req", "media.resetQuality")
+            .put("reqid", "1234567890ABCDEF2s")
+            .put("playLink", playUrl(mediaGuid))
+            .put("quality", JSONObject().put("resolution", resolution).put("bitrate", bitrate))
+            .put("startTimestamp", startTimestamp)
+            .put("clearCache", true)
+            .toString()
+        val result = runCatching { call("POST", "/v/api/v1/media/play", body) }.getOrNull()
+            ?: return false
+        return result.optInt("code") == 0
+    }
+
     suspend fun playHistory(): List<MediaItem> {
         val result = call("GET", "/v/api/v1/play/list")
         val array = result.optJSONArray("data") ?: return emptyList()

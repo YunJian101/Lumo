@@ -441,12 +441,21 @@ fun PlayerScreen(
                         if (seen.add(q.resolution)) {
                             options += "${q.resolution.uppercase()} · ${q.bitrate / 1000} kbps" to {
                                 scope.launch {
-                                    FnApi.playQuality(curMediaGuid, idx + 1)
-                                    val pos = player.currentPosition
-                                    player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
-                                    player.prepare()
-                                    player.seekTo(pos)
-                                    player.playWhenReady = true
+                                    val ok = FnApi.resetQuality(
+                                        curMediaGuid,
+                                        q.resolution,
+                                        q.bitrate,
+                                        player.currentPosition / 1000,
+                                    )
+                                    if (ok) {
+                                        val pos = player.currentPosition
+                                        player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
+                                        player.prepare()
+                                        player.seekTo(pos)
+                                        player.playWhenReady = true
+                                    } else {
+                                        hint = "画质切换失败"
+                                    }
                                 }
                                 panel = null
                             }
