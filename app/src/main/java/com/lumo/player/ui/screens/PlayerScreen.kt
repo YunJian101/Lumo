@@ -178,6 +178,13 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(stream) {
+        val s = stream ?: return@LaunchedEffect
+        s.audioTracks.firstOrNull { it.guid == s.audioGuid }?.let {
+            audioLabel = formatAudioLabel(it, true)
+        }
+    }
+
     LaunchedEffect(nextEpisode) {
         val nxt = nextEpisode
         if (nxt != null && nxt.guid != nextItem?.guid) {
@@ -580,11 +587,7 @@ fun PlayerScreen(
                 "audio" -> {
                     val s = stream
                     s?.audioTracks?.forEach { a ->
-                        val label = listOf(
-                            a.language.ifEmpty { "und" },
-                            a.codec,
-                            "${a.channels}ch",
-                        ).joinToString(" · ")
+                        val label = formatAudioLabel(a, s.audioGuid == a.guid)
                         options += label to {
                             scope.launch {
                                 val link = FnApi.playWithTracks(curMediaGuid, s.videoGuid, a.guid, "")
@@ -678,7 +681,13 @@ fun PlayerScreen(
                     )
                 }
                 options.forEach { (label, action) ->
-                    ActionPill(label) { action() }
+                    val selected = when (p) {
+                        "audio" -> label == audioLabel
+                        "subtitle" -> label == subtitleLabel
+                        "quality" -> label == qualityLabel
+                        else -> false
+                    }
+                    ActionPill(label, selected = selected) { action() }
                 }
                 Spacer(Modifier.height(6.dp))
             }
@@ -714,13 +723,19 @@ private fun ControlCircle(
 }
 
 @Composable
-private fun ActionPill(text: String, onFocusChange: (Boolean) -> Unit = {}, onClick: () -> Unit) {
+private fun ActionPill(text: String, selected: Boolean = false, onFocusChange: (Boolean) -> Unit = {}, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Box(
         Modifier
             .focusGlow(focused, 12.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0x33FFFFFF))
+            .background(
+                when {
+                    focused -> com.lumo.player.ui.FnColors.Accent.copy(alpha = 0.85f)
+                    selected -> com.lumo.player.ui.FnColors.Accent.copy(alpha = 0.35f)
+                    else -> Color(0x33FFFFFF)
+                },
+            )
             .onFocusChanged {
                 focused = it.isFocused
                 onFocusChange(it.isFocused)
@@ -742,6 +757,40 @@ private fun Pill(text: String) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(text, color = Color(0xFFE7EEF8), fontSize = 10.sp)
+    }
+}
+
+private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Boolean): String {
+    val lang = when (a.language.lowercase()) {
+        "chi", "zho", "zh", "cmn" -> "国语"
+        "eng", "en" -> "英语"
+        "jpn", "ja" -> "日语"
+        "kor", "ko" -> "韩语"
+        "yue" -> "粤语"
+        "und", "" -> "未知语言"
+        else -> a.language
+    }
+    val codec = when (a.codec.lowercase()) {
+        "eac3" -> "杜比数字+"
+        "ac3" -> "杜比数字"
+        "truehd" -> "杜比全景声"
+        "dts" -> "DTS"
+        "aac" -> "AAC"
+        "flac" -> "FLAC"
+        "opus" -> "Opus"
+        "mp3" -> "MP3"
+        else -> a.codec.uppercase()
+    }
+    val ch = when (a.channels) {
+        1 -> "单声道"
+        2 -> "2.0"
+        6 -> "5.1"
+        8 -> "7.1"
+        else -> "${a.channels} 声道"
+    }
+    return buildString {
+        append(lang).append(" · ").append(codec).append(" · ").append(ch)
+        if (isDefault) append(" · 默认")
     }
 }
 
