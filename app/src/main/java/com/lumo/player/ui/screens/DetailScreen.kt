@@ -72,7 +72,7 @@ object DetailRefresh {
 
 @Composable
 fun DetailScreen(    item: MediaItem,
-    onPlay: (String, String, String) -> Unit,
+    onPlay: (String, String, String, Long) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -350,6 +350,7 @@ fun DetailScreen(    item: MediaItem,
                                                         detail?.title ?: item.displayTitle,
                                                         info.guid,
                                                         info.mediaGuid,
+                                                        info.ts * 1000,
                                                     )
                                                 }
                                                 .onFailure { error = it.message }

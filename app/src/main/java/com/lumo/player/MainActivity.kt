@@ -39,7 +39,12 @@ sealed interface Screen {
     data object Home : Screen
     data class LibraryPage(val library: Library) : Screen
     data class Detail(val item: MediaItem) : Screen
-    data class Player(val title: String, val mediaGuid: String, val itemGuid: String = "") : Screen
+    data class Player(
+        val title: String,
+        val mediaGuid: String,
+        val itemGuid: String = "",
+        val startMs: Long = 0L,
+    ) : Screen
     data object Search : Screen
     data object Settings : Screen
 }
@@ -104,7 +109,7 @@ fun AppRoot(loggedIn: Boolean) {
                 Screen.Home -> HomeScreen(
                     onOpenLibrary = { stack.add(Screen.LibraryPage(it)) },
                     onOpenDetail = { stack.add(Screen.Detail(it)) },
-                    onPlay = { title, guid -> stack.add(Screen.Player(title, guid, "")) },
+                    onPlay = { title, guid -> stack.add(Screen.Player(title, guid, "", 0L)) },
                     onSearch = { stack.add(Screen.Search) },
                     onSettings = { stack.add(Screen.Settings) },
                 )
@@ -118,8 +123,8 @@ fun AppRoot(loggedIn: Boolean) {
 
                 is Screen.Detail -> DetailScreen(
                     item = screen.item,
-                    onPlay = { title, itemGuid, mediaGuid ->
-                        stack.add(Screen.Player(title, mediaGuid, itemGuid))
+                    onPlay = { title, itemGuid, mediaGuid, startMs ->
+                        stack.add(Screen.Player(title, mediaGuid, itemGuid, startMs))
                     },
                     onSearch = { stack.add(Screen.Search) },
                     onSettings = { stack.add(Screen.Settings) },
@@ -129,6 +134,7 @@ fun AppRoot(loggedIn: Boolean) {
                     title = screen.title,
                     mediaGuid = screen.mediaGuid,
                     itemGuid = screen.itemGuid,
+                    startPositionMs = screen.startMs,
                     onBack = { closePlayer() },
                 )
 

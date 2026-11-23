@@ -61,6 +61,7 @@ fun PlayerScreen(
     title: String,
     mediaGuid: String,
     itemGuid: String = "",
+    startPositionMs: Long = 0L,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -111,6 +112,7 @@ fun PlayerScreen(
 
     LaunchedEffect(mediaGuid) {
         player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(mediaGuid)))
+        if (startPositionMs > 0) player.seekTo(startPositionMs)
         player.prepare()
         player.playWhenReady = true
         runCatching { focus.requestFocus() }
