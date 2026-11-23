@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -52,6 +53,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.lumo.player.data.FnApi
+import com.lumo.player.ui.focusGlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -73,7 +75,26 @@ fun PlayerScreen(
     var buffering by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var stream by remember { mutableStateOf<com.lumo.player.data.StreamInfo?>(null) }
+    var episodeLabel by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
+    val playButtonFocus = remember { FocusRequester() }
+
+    LaunchedEffect(itemGuid) {
+        if (itemGuid.isNotEmpty()) {
+            runCatching { com.lumo.player.data.FnApi.itemDetail(itemGuid) }.onSuccess { d ->
+                val code = "S%02dE%02d".format(d.seasonNumber, d.episodeNumber)
+                episodeLabel = if (d.title.isNotEmpty()) "$code · ${d.title}" else code
+            }
+        }
+    }
+
+    LaunchedEffect(controlsVisible) {
+        if (controlsVisible) {
+            androidx.compose.runtime.withFrameNanos { }
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching { playButtonFocus.requestFocus() }
+        }
+    }
 
     BackHandler {
         val ts = (player.currentPosition / 1000).coerceAtLeast(0)
@@ -155,24 +176,8 @@ fun PlayerScreen(
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
                     controlsVisible = true
-                    when (event.key) {
-                        Key.DirectionCenter, Key.Enter -> {
-                            if (player.isPlaying) player.pause() else player.play()
-                            true
-                        }
-                        Key.DirectionLeft -> {
-                            player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
-                            true
-                        }
-                        Key.DirectionRight -> {
-                            player.seekTo(player.currentPosition + 10_000)
-                            true
-                        }
-                        else -> false
-                    }
-                } else {
-                    false
                 }
+                false
             },
     ) {
         AndroidView(
@@ -242,7 +247,7 @@ fun PlayerScreen(
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("飞牛影视", color = Color(0xFFB9C6D8), fontSize = 11.sp)
+                    Text(episodeLabel.ifEmpty { title }, color = Color(0xFFB9C6D8), fontSize = 11.sp)
                 }
                 Spacer(Modifier.weight(1f))
                 val info = stream
@@ -268,7 +273,11 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ControlCircle("−10s") { player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0)) }
-                ControlCircle(if (playing) "II" else "▶", big = true) {
+                ControlCircle(
+                    label = if (playing) "II" else "▶",
+                    big = true,
+                    modifier = androidx.compose.ui.Modifier.focusRequester(playButtonFocus),
+                ) {
                     if (player.isPlaying) player.pause() else player.play()
                 }
                 ControlCircle("+10s") { player.seekTo(player.currentPosition + 10_000) }
@@ -311,12 +320,21 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun ControlCircle(label: String, big: Boolean = false, onClick: () -> Unit) {
+private fun ControlCircle(
+    label: String,
+    big: Boolean = false,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
     Box(
-        Modifier
+        modifier
             .size(if (big) 64.dp else 44.dp)
+            .focusGlow(focused, if (big) 32.dp else 22.dp)
             .clip(CircleShape)
             .background(if (big) com.lumo.player.ui.FnColors.Accent else Color(0x33FFFFFF))
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

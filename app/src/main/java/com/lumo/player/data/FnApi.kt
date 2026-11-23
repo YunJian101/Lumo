@@ -60,6 +60,7 @@ data class ItemDetail(
     val numberSeasons: Int,
     val parentGuid: String,
     val episodeNumber: Int,
+    val seasonNumber: Int,
 )
 
 data class PlayInfo(
@@ -389,6 +390,7 @@ object FnApi {
             numberSeasons = item.optInt("number_of_seasons"),
             parentGuid = item.optString("parent_guid"),
             episodeNumber = item.optInt("episode_number"),
+            seasonNumber = item.optInt("season_number"),
         )
     }
 
