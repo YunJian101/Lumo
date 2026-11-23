@@ -72,7 +72,13 @@ data class PlayInfo(
 
 data class Quality(val resolution: String, val bitrate: Long)
 
-data class AudioTrack(val guid: String, val language: String, val codec: String, val channels: Int)
+data class AudioTrack(
+    val guid: String,
+    val language: String,
+    val codec: String,
+    val channels: Int,
+    val title: String = "",
+)
 
 data class SubtitleTrack(val guid: String, val language: String, val title: String)
 
@@ -562,6 +568,7 @@ object FnApi {
                         language = a.optString("language"),
                         codec = a.optString("codec_name"),
                         channels = a.optInt("channels"),
+                        title = a.optString("title"),
                     )
                 }
             } ?: emptyList(),

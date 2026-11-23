@@ -789,10 +789,14 @@ private fun Pill(text: String) {
 private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Boolean): String {
     val lang = when (a.language.lowercase()) {
         "chi", "zho", "zh", "cmn" -> "国语"
+        "yue", "cantonese" -> "粤语"
         "eng", "en" -> "英语"
         "jpn", "ja" -> "日语"
         "kor", "ko" -> "韩语"
-        "yue" -> "粤语"
+        "fra", "fre", "fr" -> "法语"
+        "deu", "ger", "de" -> "德语"
+        "spa", "es" -> "西班牙语"
+        "rus", "ru" -> "俄语"
         "und", "" -> "未知语言"
         else -> a.language
     }
@@ -801,21 +805,30 @@ private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Bool
         "ac3" -> "杜比数字"
         "truehd" -> "杜比全景声"
         "dts" -> "DTS"
+        "dts-hd", "dtshd" -> "DTS-HD"
         "aac" -> "AAC"
         "flac" -> "FLAC"
         "opus" -> "Opus"
         "mp3" -> "MP3"
+        "pcm", "lpcm" -> "PCM"
+        "vorbis" -> "Vorbis"
         else -> a.codec.uppercase()
     }
     val ch = when (a.channels) {
         1 -> "单声道"
-        2 -> "2.0"
-        6 -> "5.1"
-        8 -> "7.1"
+        2 -> "2.0 立体声"
+        6 -> "5.1 环绕"
+        8 -> "7.1 环绕"
         else -> "${a.channels} 声道"
     }
+    val title = a.title.trim()
+    val prefix = if (title.isNotEmpty() && title.any { it.code > 127 } && !title.contains("默认")) {
+        "$title · "
+    } else {
+        ""
+    }
     return buildString {
-        append(lang).append(" · ").append(codec).append(" · ").append(ch)
+        append(prefix).append(lang).append(" · ").append(codec).append(" · ").append(ch)
         if (isDefault) append(" · 默认")
     }
 }
