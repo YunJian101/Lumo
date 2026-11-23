@@ -334,7 +334,8 @@ fun DetailScreen(    item: MediaItem,
                                         }
                                     },
                                     onClick = {
-                                        val epGuid = selectedEpisodeGuid
+                                        val epGuid = currentEpisode?.guid
+                                            ?: selectedEpisodeGuid
                                             ?: playInfo?.guid
                                             ?: item.playableGuid
                                         scope.launch {
