@@ -442,37 +442,34 @@ fun PlayerScreen(
                             options += "${q.resolution.uppercase()} · ${q.bitrate / 1000} kbps" to {
                                 scope.launch {
                                     val s = stream
-                                    val ok = s != null && FnApi.resetQuality(
-                                        curItemGuid,
-                                        curMediaGuid,
-                                        s.videoGuid,
-                                        s.audioGuid,
-                                        q.resolution,
-                                        q.bitrate,
-                                        player.currentPosition / 1000,
-                                    )
-                                    if (ok && s != null) {
-                                        val link = FnApi.playLink(
-                                            curItemGuid,
+                                    if (s != null) {
+                                        val resolution = if (q.resolution.endsWith("p")) {
+                                            q.resolution
+                                        } else {
+                                            q.resolution + "p"
+                                        }
+                                        val link = FnApi.transcodeLink(
                                             curMediaGuid,
                                             s.videoGuid,
+                                            s.videoCodec,
+                                            resolution,
+                                            q.bitrate,
+                                            player.currentPosition / 1000,
                                             s.audioGuid,
+                                            s.audioCodec,
+                                            s.channels,
                                         )
                                         if (link != null) {
                                             val pos = player.currentPosition
                                             player.setMediaItem(
-                                                ExoMediaItem.fromUri(
-                                                    FnApi.host.trimEnd('/') + link,
-                                                ),
+                                                ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link),
                                             )
                                             player.prepare()
                                             player.seekTo(pos)
                                             player.playWhenReady = true
                                         } else {
-                                            hint = "获取转码流失败"
+                                            hint = "画质切换失败"
                                         }
-                                    } else {
-                                        hint = "画质切换失败"
                                     }
                                 }
                                 panel = null

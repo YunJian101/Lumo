@@ -305,6 +305,33 @@ object FnApi {
         return result.optJSONObject("data")?.optString("play_link")?.ifEmpty { null }
     }
 
+    suspend fun transcodeLink(
+        mediaGuid: String,
+        videoGuid: String,
+        videoEncoder: String,
+        resolution: String,
+        bitrate: Long,
+        startTimestamp: Long,
+        audioGuid: String,
+        audioEncoder: String,
+        channels: Int,
+    ): String? {
+        val body = JSONObject()
+            .put("media_guid", mediaGuid)
+            .put("video_guid", videoGuid)
+            .put("video_encoder", videoEncoder)
+            .put("resolution", resolution)
+            .put("bitrate", bitrate)
+            .put("startTimestamp", startTimestamp)
+            .put("audio_encoder", audioEncoder)
+            .put("audio_guid", audioGuid)
+            .put("channels", channels)
+            .toString()
+        val result = runCatching { call("POST", "/v/api/v1/play/play", body) }.getOrNull()
+            ?: return null
+        return result.optJSONObject("data")?.optString("play_link")?.ifEmpty { null }
+    }
+
     suspend fun resetQuality(
         itemGuid: String,
         mediaGuid: String,
