@@ -91,6 +91,11 @@ fun PlayerScreen(
     var activeRes by remember { mutableStateOf("") }
     var selectedQuality by remember { mutableStateOf<com.lumo.player.data.Quality?>(null) }
     var retryOnce by remember { mutableStateOf(false) }
+    var liveVideo by remember { mutableStateOf("") }
+    var liveAudio by remember { mutableStateOf("") }
+    var bufferedMs by remember { mutableLongStateOf(0L) }
+    var nextItem by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
+    var nextMediaGuid by remember { mutableStateOf("") }
     var episodes by remember { mutableStateOf<List<com.lumo.player.data.MediaItem>>(emptyList()) }
     var epIndex by remember { mutableIntStateOf(-1) }
     val prevEpisode = episodes.getOrNull(epIndex - 1)
@@ -171,13 +176,16 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(ended) {
-        if (ended) {
-            val nxt = nextEpisode
-            if (nxt != null) {
-                playEpisode(nxt)
+    LaunchedEffect(nextEpisode) {
+        val nxt = nextEpisode
+        if (nxt != null && nxt.guid != nextItem?.guid) {
+            runCatching { FnApi.playInfo(nxt.guid) }.onSuccess { info ->
+                nextItem = nxt
+                nextMediaGuid = info.mediaGuid
+                runCatching {
+                    player.addMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(info.mediaGuid)))
+                }
             }
-            ended = false
         }
     }
 
@@ -204,6 +212,24 @@ fun PlayerScreen(
             override fun onPlayerError(e: androidx.media3.common.PlaybackException) {
                 error = e.errorCodeName
                 if (selectedQuality != null && !retryOnce) retryOnce = true
+            }
+
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                if (player.currentMediaItemIndex > 0 && nextItem != null) {
+                    val item = nextItem!!
+                    curItemGuid = item.guid
+                    curMediaGuid = nextMediaGuid
+                    epIndex = episodes.indexOfFirst { it.guid == item.guid }
+                    val code = "S%02dE%02d".format(item.seasonNumber, item.episodeNumber)
+                    episodeLabel = if (item.title.isNotEmpty() && item.title != "第 ${item.episodeNumber} 集") {
+                        "$code · ${item.title}"
+                    } else {
+                        code
+                    }
+                    LastPlayed.episodeGuid = item.guid
+                    LastPlayed.episodeItem = item
+                    runCatching { player.removeMediaItem(0) }
+                }
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -256,6 +282,23 @@ fun PlayerScreen(
             position = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.coerceAtLeast(0L)
             speedMb = speedState.mbps
+            bufferedMs = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0L)
+            val v = player.videoFormat
+            if (v != null) {
+                liveVideo = buildString {
+                    append(v.width).append("x").append(v.height)
+                    v.sampleMimeType?.substringAfterLast('/')?.let { append(" · ").append(it) }
+                    if (v.frameRate > 0) append(" · ").append(v.frameRate.toInt()).append("fps")
+                    if (v.bitrate > 0) append(" · ").append(v.bitrate / 1_000_000).append("Mbps")
+                }
+            }
+            val a = player.audioFormat
+            if (a != null) {
+                liveAudio = buildString {
+                    append(a.sampleMimeType?.substringAfterLast('/') ?: "audio")
+                    append(" ").append(a.channelCount).append("ch")
+                }
+            }
             delay(500)
         }
     }
@@ -456,10 +499,9 @@ fun PlayerScreen(
                 if (hint.isNotEmpty()) {
                     Text(hint, color = Color(0xFFFFD479), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                 }
-                if (showInfo && stream != null) {
-                    val s = stream!!
+                if (showInfo) {
                     Text(
-                        "${s.videoCodec.uppercase()} ${s.width}x${s.height} · ${s.fps} · ${s.bitrate / 1_000_000}Mbps · ${s.hdr} · ${s.audioCodec.uppercase()} ${s.channels}ch",
+                        "${liveVideo.ifEmpty { "--" }} · ${liveAudio.ifEmpty { "--" }} · 缓冲 ${bufferedMs / 1000}s · ${String.format(Locale.US, "%.1f", speedMb)} MB/s",
                         color = Color(0xFFC9D5E6),
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 6.dp),
