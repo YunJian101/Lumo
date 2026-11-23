@@ -436,23 +436,31 @@ fun PlayerScreen(
             val options = mutableListOf<Pair<String, () -> Unit>>()
             when (p) {
                 "quality" -> {
+                    options += "原画" to {
+                        val pos = player.currentPosition
+                        player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
+                        player.prepare()
+                        player.seekTo(pos)
+                        player.playWhenReady = true
+                        panel = null
+                    }
                     val seen = mutableSetOf<String>()
-                    stream?.qualities?.forEachIndexed { idx, q ->
-                        if (seen.add(q.resolution)) {
-                            options += "${q.resolution.uppercase()} · ${q.bitrate / 1000} kbps" to {
+                    stream?.qualities?.forEach { q ->
+                        if (q.resolution.isNotEmpty() && seen.add(q.resolution)) {
+                            val label = if (q.resolution.contains("k", true)) {
+                                q.resolution.uppercase()
+                            } else {
+                                q.resolution + "p"
+                            }
+                            options += "$label · ${q.bitrate / 1000} kbps" to {
                                 scope.launch {
                                     val s = stream
                                     if (s != null) {
-                                        val resolution = if (q.resolution.endsWith("p")) {
-                                            q.resolution
-                                        } else {
-                                            q.resolution + "p"
-                                        }
                                         val link = FnApi.transcodeLink(
                                             curMediaGuid,
                                             s.videoGuid,
                                             s.videoCodec,
-                                            resolution,
+                                            q.resolution,
                                             q.bitrate,
                                             player.currentPosition / 1000,
                                             s.audioGuid,
