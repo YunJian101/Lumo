@@ -199,6 +199,10 @@ fun PlayerScreen(
         }
     }
 
+    BackHandler(enabled = panel != null) {
+        panel = null
+    }
+
     BackHandler {
         val ts = (player.currentPosition / 1000).coerceAtLeast(0)
         kotlinx.coroutines.runBlocking {
@@ -667,13 +671,16 @@ fun PlayerScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 if (options.isEmpty()) {
-                    Text("暂无可选项", color = Color(0xFF9FB0C7), fontSize = 11.sp)
+                    Text(
+                        if (p == "subtitle") "该片源无内封字幕" else "暂无可选项",
+                        color = Color(0xFF9FB0C7),
+                        fontSize = 11.sp,
+                    )
                 }
                 options.forEach { (label, action) ->
                     ActionPill(label) { action() }
                 }
                 Spacer(Modifier.height(6.dp))
-                ActionPill("关闭") { panel = null }
             }
         }
     }
