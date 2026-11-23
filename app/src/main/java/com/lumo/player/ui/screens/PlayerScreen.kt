@@ -75,7 +75,15 @@ fun PlayerScreen(
     var stream by remember { mutableStateOf<com.lumo.player.data.StreamInfo?>(null) }
     val focus = remember { FocusRequester() }
 
-    BackHandler { onBack() }
+    BackHandler {
+        val ts = (player.currentPosition / 1000).coerceAtLeast(0)
+        kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.withTimeoutOrNull(2000) {
+                FnApi.reportProgress(itemGuid, mediaGuid, ts)
+            }
+        }
+        onBack()
+    }
 
     DisposableEffect(player) {
         val listener = object : androidx.media3.common.Player.Listener {
