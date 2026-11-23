@@ -116,6 +116,9 @@ fun PlayerScreen(
     }
 
     suspend fun playEpisode(ep: com.lumo.player.data.MediaItem) {
+        android.util.Log.d("LumoPlay", "playEpisode guid=${ep.guid} ep=${ep.episodeNumber} sn=${ep.seasonNumber}")
+        LastPlayed.episodeGuid = ep.guid
+        LastPlayed.episodeItem = ep
         runCatching { com.lumo.player.data.FnApi.playInfo(ep.guid) }.onSuccess { info ->
             curItemGuid = info.guid
             curMediaGuid = info.mediaGuid
@@ -156,7 +159,7 @@ fun PlayerScreen(
         val ts = (player.currentPosition / 1000).coerceAtLeast(0)
         kotlinx.coroutines.runBlocking {
             kotlinx.coroutines.withTimeoutOrNull(2000) {
-                FnApi.reportProgress(itemGuid, mediaGuid, ts)
+                FnApi.reportProgress(curItemGuid, curMediaGuid, ts)
             }
         }
         onBack()
@@ -178,7 +181,7 @@ fun PlayerScreen(
         onDispose {
             val ts = (player.currentPosition / 1000).coerceAtLeast(0)
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching { FnApi.reportProgress(itemGuid, mediaGuid, ts) }
+                runCatching { FnApi.reportProgress(curItemGuid, curMediaGuid, ts) }
             }
             player.removeListener(listener)
             player.release()
@@ -190,7 +193,11 @@ fun PlayerScreen(
             delay(10_000)
             if (player.isPlaying) {
                 runCatching {
-                    FnApi.reportProgress(itemGuid, mediaGuid, (player.currentPosition / 1000).coerceAtLeast(0))
+                    FnApi.reportProgress(
+                        curItemGuid,
+                        curMediaGuid,
+                        (player.currentPosition / 1000).coerceAtLeast(0),
+                    )
                 }
             }
         }

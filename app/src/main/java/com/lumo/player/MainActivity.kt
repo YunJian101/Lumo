@@ -76,10 +76,12 @@ fun AppRoot(loggedIn: Boolean) {
         DetailRefresh.token += 1
         if (stack.lastOrNull() is Screen.Player) stack.removeAt(stack.lastIndex)
         val played = LastPlayed.episodeItem
+        android.util.Log.d("LumoClose", "played=${played?.guid} ep=${played?.episodeNumber}")
         if (played != null) {
             if (stack.lastOrNull() is Screen.Detail) stack.removeAt(stack.lastIndex)
             stack.add(Screen.Detail(played))
         }
+        if (stack.isEmpty()) stack.add(Screen.Home)
     }
 
     BackHandler(enabled = stack.size > 1) {
