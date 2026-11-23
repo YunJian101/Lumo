@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +77,9 @@ fun PlayerScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var stream by remember { mutableStateOf<com.lumo.player.data.StreamInfo?>(null) }
     var episodeLabel by remember { mutableStateOf("") }
+    var speed by remember { mutableFloatStateOf(1f) }
+    var showInfo by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     val playButtonFocus = remember { FocusRequester() }
 
@@ -234,11 +238,15 @@ fun PlayerScreen(
                     .padding(horizontal = 37.dp, vertical = 22.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                var backFocused by remember { mutableStateOf(false) }
                 Box(
                     Modifier
                         .size(32.dp)
+                        .focusGlow(backFocused, 16.dp)
                         .clip(CircleShape)
                         .background(Color(0x33FFFFFF))
+                        .onFocusChanged { backFocused = it.isFocused }
+                        .focusable()
                         .clickable { onBack() },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -306,13 +314,33 @@ fun PlayerScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Pill("画质 · 原画")
-                    Pill("音轨 · 默认")
-                    Pill("字幕 · 关")
-                    Pill("选集")
-                    Pill("倍速 · 1.0x")
+                    ActionPill("画质 · 原画") { hint = "画质切换暂未开放" }
+                    ActionPill("音轨 · 默认") { hint = "音轨切换暂未开放" }
+                    ActionPill("字幕 · 关") { hint = "字幕切换暂未开放" }
+                    ActionPill("选集") { onBack() }
+                    ActionPill("倍速 · ${String.format(Locale.US, "%.1f", speed)}x") {
+                        speed = when (speed) {
+                            1f -> 1.25f
+                            1.25f -> 1.5f
+                            1.5f -> 2f
+                            else -> 1f
+                        }
+                        player.setPlaybackSpeed(speed)
+                    }
                     Spacer(Modifier.weight(1f))
-                    Pill("信息")
+                    ActionPill("信息") { showInfo = !showInfo }
+                }
+                if (hint.isNotEmpty()) {
+                    Text(hint, color = Color(0xFFFFD479), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+                if (showInfo && stream != null) {
+                    val s = stream!!
+                    Text(
+                        "${s.videoCodec.uppercase()} ${s.width}x${s.height} · ${s.fps} · ${s.bitrate / 1_000_000}Mbps · ${s.hdr} · ${s.audioCodec.uppercase()} ${s.channels}ch",
+                        color = Color(0xFFC9D5E6),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                 }
             }
         }
@@ -339,6 +367,23 @@ private fun ControlCircle(
         contentAlignment = Alignment.Center,
     ) {
         Text(label, color = Color.White, fontSize = if (big) 20.sp else 12.sp)
+    }
+}
+
+@Composable
+private fun ActionPill(text: String, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        Modifier
+            .focusGlow(focused, 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0x33FFFFFF))
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(text, color = Color(0xFFE7EEF8), fontSize = 10.sp)
     }
 }
 
