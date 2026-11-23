@@ -26,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +81,12 @@ fun PlayerScreen(
     var speed by remember { mutableFloatStateOf(1f) }
     var showInfo by remember { mutableStateOf(false) }
     var hint by remember { mutableStateOf("") }
+    var interactionTick by remember { mutableIntStateOf(0) }
+    var controlFocused by remember { mutableStateOf(false) }
+    val onControlFocus: (Boolean) -> Unit = { focused ->
+        controlFocused = focused
+        if (focused) interactionTick += 1
+    }
     val focus = remember { FocusRequester() }
     val playButtonFocus = remember { FocusRequester() }
 
@@ -164,9 +171,9 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(controlsVisible, playing) {
-        if (controlsVisible && playing) {
-            delay(3000)
+    LaunchedEffect(controlsVisible, playing, interactionTick, controlFocused) {
+        if (controlsVisible && playing && !controlFocused) {
+            delay(5000)
             controlsVisible = false
         }
     }
@@ -180,6 +187,7 @@ fun PlayerScreen(
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
                     controlsVisible = true
+                    interactionTick += 1
                 }
                 false
             },
@@ -280,15 +288,20 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.spacedBy(48.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ControlCircle("−10s") { player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0)) }
+                ControlCircle("−10s", onFocusChange = onControlFocus) {
+                    player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
+                }
                 ControlCircle(
                     label = if (playing) "II" else "▶",
                     big = true,
                     modifier = androidx.compose.ui.Modifier.focusRequester(playButtonFocus),
+                    onFocusChange = onControlFocus,
                 ) {
                     if (player.isPlaying) player.pause() else player.play()
                 }
-                ControlCircle("+10s") { player.seekTo(player.currentPosition + 10_000) }
+                ControlCircle("+10s", onFocusChange = onControlFocus) {
+                    player.seekTo(player.currentPosition + 10_000)
+                }
             }
 
             Column(
@@ -314,11 +327,14 @@ fun PlayerScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    ActionPill("画质 · 原画") { hint = "画质切换暂未开放" }
-                    ActionPill("音轨 · 默认") { hint = "音轨切换暂未开放" }
-                    ActionPill("字幕 · 关") { hint = "字幕切换暂未开放" }
-                    ActionPill("选集") { onBack() }
-                    ActionPill("倍速 · ${String.format(Locale.US, "%.1f", speed)}x") {
+                    ActionPill("画质 · 原画", onFocusChange = onControlFocus) { hint = "画质切换暂未开放" }
+                    ActionPill("音轨 · 默认", onFocusChange = onControlFocus) { hint = "音轨切换暂未开放" }
+                    ActionPill("字幕 · 关", onFocusChange = onControlFocus) { hint = "字幕切换暂未开放" }
+                    ActionPill("选集", onFocusChange = onControlFocus) { onBack() }
+                    ActionPill(
+                        "倍速 · ${String.format(Locale.US, "%.1f", speed)}x",
+                        onFocusChange = onControlFocus,
+                    ) {
                         speed = when (speed) {
                             1f -> 1.25f
                             1.25f -> 1.5f
@@ -328,7 +344,7 @@ fun PlayerScreen(
                         player.setPlaybackSpeed(speed)
                     }
                     Spacer(Modifier.weight(1f))
-                    ActionPill("信息") { showInfo = !showInfo }
+                    ActionPill("信息", onFocusChange = onControlFocus) { showInfo = !showInfo }
                 }
                 if (hint.isNotEmpty()) {
                     Text(hint, color = Color(0xFFFFD479), fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
@@ -352,6 +368,7 @@ private fun ControlCircle(
     label: String,
     big: Boolean = false,
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    onFocusChange: (Boolean) -> Unit = {},
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -361,7 +378,10 @@ private fun ControlCircle(
             .focusGlow(focused, if (big) 32.dp else 22.dp)
             .clip(CircleShape)
             .background(if (big) com.lumo.player.ui.FnColors.Accent else Color(0x33FFFFFF))
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                onFocusChange(it.isFocused)
+            }
             .focusable()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -371,14 +391,17 @@ private fun ControlCircle(
 }
 
 @Composable
-private fun ActionPill(text: String, onClick: () -> Unit) {
+private fun ActionPill(text: String, onFocusChange: (Boolean) -> Unit = {}, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Box(
         Modifier
             .focusGlow(focused, 12.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0x33FFFFFF))
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                onFocusChange(it.isFocused)
+            }
             .focusable()
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
