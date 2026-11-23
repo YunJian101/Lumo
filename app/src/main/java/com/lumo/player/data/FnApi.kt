@@ -72,6 +72,10 @@ data class PlayInfo(
 
 data class Quality(val resolution: String, val bitrate: Long)
 
+data class AudioTrack(val guid: String, val language: String, val codec: String, val channels: Int)
+
+data class SubtitleTrack(val guid: String, val language: String, val title: String)
+
 data class StreamInfo(
     val videoCodec: String,
     val width: Int,
@@ -93,6 +97,8 @@ data class StreamInfo(
     val qualities: List<Quality> = emptyList(),
     val videoGuid: String = "",
     val audioGuid: String = "",
+    val audioTracks: List<AudioTrack> = emptyList(),
+    val subtitleTracks: List<SubtitleTrack> = emptyList(),
 )
 
 data class Person(
@@ -295,6 +301,23 @@ object FnApi {
     ): String? {
         val body = JSONObject()
             .put("item_guid", itemGuid)
+            .put("media_guid", mediaGuid)
+            .put("video_guid", videoGuid)
+            .put("audio_guid", audioGuid)
+            .put("subtitle_guid", subtitleGuid)
+            .toString()
+        val result = runCatching { call("POST", "/v/api/v1/play/play", body) }.getOrNull()
+            ?: return null
+        return result.optJSONObject("data")?.optString("play_link")?.ifEmpty { null }
+    }
+
+    suspend fun playWithTracks(
+        mediaGuid: String,
+        videoGuid: String,
+        audioGuid: String,
+        subtitleGuid: String,
+    ): String? {
+        val body = JSONObject()
             .put("media_guid", mediaGuid)
             .put("video_guid", videoGuid)
             .put("audio_guid", audioGuid)
@@ -531,6 +554,27 @@ object FnApi {
             } ?: emptyList(),
             videoGuid = video?.optString("guid").orEmpty(),
             audioGuid = audio?.optString("guid").orEmpty(),
+            audioTracks = audios?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val a = arr.optJSONObject(i) ?: return@mapNotNull null
+                    AudioTrack(
+                        guid = a.optString("guid"),
+                        language = a.optString("language"),
+                        codec = a.optString("codec_name"),
+                        channels = a.optInt("channels"),
+                    )
+                }
+            } ?: emptyList(),
+            subtitleTracks = data.optJSONArray("subtitle_streams")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val s = arr.optJSONObject(i) ?: return@mapNotNull null
+                    SubtitleTrack(
+                        guid = s.optString("guid"),
+                        language = s.optString("language"),
+                        title = s.optString("title"),
+                    )
+                }
+            } ?: emptyList(),
         )
     }
 

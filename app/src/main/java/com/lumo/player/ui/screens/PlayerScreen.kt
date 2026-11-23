@@ -573,32 +573,76 @@ fun PlayerScreen(
                         }
                     }
                 }
-                "audio", "subtitle" -> {
-                    val type = if (p == "audio") {
-                        androidx.media3.common.C.TRACK_TYPE_AUDIO
-                    } else {
-                        androidx.media3.common.C.TRACK_TYPE_TEXT
-                    }
-                    player.currentTracks.groups.filter { it.type == type }.forEach { group ->
-                        for (i in 0 until group.length) {
-                            val format = group.getTrackFormat(i)
-                            val label = format.label ?: format.language ?: "轨道 ${i + 1}"
-                            options += label to {
-                                player.trackSelectionParameters = player.trackSelectionParameters
-                                    .buildUpon()
-                                    .setTrackTypeDisabled(type, false)
-                                    .setOverrideForType(
-                                        androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i),
-                                    )
-                                    .build()
-                                if (type == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                "audio" -> {
+                    val s = stream
+                    s?.audioTracks?.forEach { a ->
+                        val label = listOf(
+                            a.language.ifEmpty { "und" },
+                            a.codec,
+                            "${a.channels}ch",
+                        ).joinToString(" · ")
+                        options += label to {
+                            scope.launch {
+                                val link = FnApi.playWithTracks(curMediaGuid, s.videoGuid, a.guid, "")
+                                if (link != null) {
+                                    val pos = player.currentPosition
+                                    player.setMediaItem(ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link))
+                                    player.prepare()
+                                    player.seekTo(pos)
+                                    player.playWhenReady = true
                                     audioLabel = label
+                                    hint = ""
                                 } else {
-                                    subtitleLabel = label
+                                    hint = "音轨切换失败"
                                 }
-                                panel = null
+                            }
+                            panel = null
+                        }
+                    }
+                }
+                "subtitle" -> {
+                    val s = stream
+                    s?.subtitleTracks?.forEach { t ->
+                        val label = t.title.ifEmpty { t.language.ifEmpty { "字幕" } }
+                        options += label to {
+                            scope.launch {
+                                val link = FnApi.playWithTracks(curMediaGuid, s.videoGuid, s.audioGuid, t.guid)
+                                if (link != null) {
+                                    val pos = player.currentPosition
+                                    player.setMediaItem(ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link))
+                                    player.prepare()
+                                    player.seekTo(pos)
+                                    player.playWhenReady = true
+                                    subtitleLabel = label
+                                    hint = ""
+                                } else {
+                                    hint = "字幕切换失败"
+                                }
+                            }
+                            panel = null
+                        }
+                    }
+                    options += "关闭字幕" to {
+                        scope.launch {
+                            val s2 = stream
+                            if (s2 != null) {
+                                val link = FnApi.playWithTracks(
+                                    curMediaGuid,
+                                    s2.videoGuid,
+                                    s2.audioGuid,
+                                    "_no_display_",
+                                )
+                                if (link != null) {
+                                    val pos = player.currentPosition
+                                    player.setMediaItem(ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link))
+                                    player.prepare()
+                                    player.seekTo(pos)
+                                    player.playWhenReady = true
+                                    subtitleLabel = "关"
+                                }
                             }
                         }
+                        panel = null
                     }
                 }
             }
@@ -627,16 +671,6 @@ fun PlayerScreen(
                 }
                 options.forEach { (label, action) ->
                     ActionPill(label) { action() }
-                }
-                if (p == "subtitle") {
-                    ActionPill("关闭字幕") {
-                        player.trackSelectionParameters = player.trackSelectionParameters
-                            .buildUpon()
-                            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
-                            .build()
-                        subtitleLabel = "关"
-                        panel = null
-                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 ActionPill("关闭") { panel = null }
