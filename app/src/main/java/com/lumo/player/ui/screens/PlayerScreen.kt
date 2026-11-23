@@ -97,6 +97,8 @@ fun PlayerScreen(
     var liveAudio by remember { mutableStateOf("") }
     var bufferedMs by remember { mutableLongStateOf(0L) }
     var decoderInfo by remember { mutableStateOf("") }
+    var videoDecoderName by remember { mutableStateOf("") }
+    var audioDecoderName by remember { mutableStateOf("") }
     var nextItem by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
     var nextMediaGuid by remember { mutableStateOf("") }
     var episodes by remember { mutableStateOf<List<com.lumo.player.data.MediaItem>>(emptyList()) }
@@ -182,6 +184,28 @@ fun PlayerScreen(
             }
             retryOnce = false
         }
+    }
+
+    DisposableEffect(player) {
+        val listener = object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+            override fun onVideoDecoderInitialized(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+            ) {
+                videoDecoderName = decoderName
+            }
+
+            override fun onAudioDecoderInitialized(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+            ) {
+                audioDecoderName = decoderName
+            }
+        }
+        player.addAnalyticsListener(listener)
+        onDispose { player.removeAnalyticsListener(listener) }
     }
 
     LaunchedEffect(stream) {
@@ -318,8 +342,8 @@ fun PlayerScreen(
                     append(" ").append(a.channelCount).append("ch")
                 }
             }
-            if (decoderInfo.isEmpty() || decoderInfo.startsWith("未开始")) {
-                decoderInfo = buildDecoderInfo(player)
+            if (videoDecoderName.isNotEmpty() || audioDecoderName.isNotEmpty()) {
+                decoderInfo = buildDecoderInfo(videoDecoderName, audioDecoderName)
             }
             delay(500)
         }
@@ -918,13 +942,7 @@ private fun mimeShort(mime: String?): String = when {
     else -> mime.substringAfterLast('/')
 }
 
-private fun buildDecoderInfo(player: ExoPlayer): String {
-    fun decoderName(audio: Boolean): String = runCatching {
-        val name = if (audio) "getAudioDecoderName" else "getVideoDecoderName"
-        val method = player.javaClass.methods.firstOrNull { it.name == name } ?: return ""
-        method.invoke(player) as? String ?: ""
-    }.getOrDefault("")
-
+private fun buildDecoderInfo(videoDecoder: String, audioDecoder: String): String {
     fun kind(name: String): String {
         if (name.isEmpty()) return ""
         val hw = runCatching {
@@ -946,8 +964,8 @@ private fun buildDecoderInfo(player: ExoPlayer): String {
     }
 
     val items = mutableListOf<String>()
-    kind(decoderName(false)).takeIf { it.isNotEmpty() }?.let { items += "视频 $it" }
-    kind(decoderName(true)).takeIf { it.isNotEmpty() }?.let { items += "音频 $it" }
+    kind(videoDecoder).takeIf { it.isNotEmpty() }?.let { items += "视频 $it" }
+    kind(audioDecoder).takeIf { it.isNotEmpty() }?.let { items += "音频 $it" }
     return items.joinToString(" · ")
 }
 

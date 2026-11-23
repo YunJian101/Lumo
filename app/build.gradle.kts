@@ -19,16 +19,26 @@ android {
         applicationId = "com.lumo.player"
         minSdk = 23
         targetSdk = 35
-        versionCode = 128
-        versionName = "1.5.8"
+        versionCode = 133
+        versionName = "1.6.3"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "FN_API_KEY", "\"${localProps.getProperty("fn.apiKey") ?: ""}\"")
         buildConfigField("String", "FN_API_SECRET", "\"${localProps.getProperty("fn.apiSecret") ?: ""}\"")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file(".android-home/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -73,6 +83,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("com.google.zxing:core:3.5.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

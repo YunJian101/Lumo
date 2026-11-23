@@ -74,8 +74,14 @@ fun LibraryScreen(
     var genreNames by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
     var genresByGuid by remember { mutableStateOf<Map<String, List<Int>>>(emptyMap()) }
     var selectedGenre by remember { mutableStateOf<Genre?>(null) }
-    var sortColumn by remember { mutableStateOf("create_time") }
-    var sortType by remember { mutableStateOf("DESC") }
+    val prefs = androidx.compose.ui.platform.LocalContext.current
+        .getSharedPreferences("lumo_prefs", android.content.Context.MODE_PRIVATE)
+    var sortColumn by remember {
+        mutableStateOf(prefs.getString("sort_column", "create_time") ?: "create_time")
+    }
+    var sortType by remember {
+        mutableStateOf(prefs.getString("sort_type", "DESC") ?: "DESC")
+    }
     var resolution by remember { mutableStateOf<String?>(null) }
     var showGenreDialog by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -86,6 +92,10 @@ fun LibraryScreen(
     var selectedIndex by remember { mutableStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    LaunchedEffect(sortColumn, sortType) {
+        prefs.edit().putString("sort_column", sortColumn).putString("sort_type", sortType).apply()
+    }
 
     LaunchedEffect(Unit) {
         genreNames = runCatching { FnApi.genres() }
