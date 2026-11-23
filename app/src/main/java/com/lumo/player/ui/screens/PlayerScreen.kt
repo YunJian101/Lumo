@@ -86,6 +86,7 @@ fun PlayerScreen(
     var interactionTick by remember { mutableIntStateOf(0) }
     var controlFocused by remember { mutableStateOf(false) }
     var speedMb by remember { mutableStateOf(0.0) }
+    var panel by remember { mutableStateOf<String?>(null) }
     var episodes by remember { mutableStateOf<List<com.lumo.player.data.MediaItem>>(emptyList()) }
     var epIndex by remember { mutableIntStateOf(-1) }
     val prevEpisode = episodes.getOrNull(epIndex - 1)
@@ -397,9 +398,9 @@ fun PlayerScreen(
                             scope.launch { playEpisode(n) }
                         }
                     }
-                    ActionPill("画质 · 原画", onFocusChange = onControlFocus) { hint = "画质切换暂未开放" }
-                    ActionPill("音轨 · 默认", onFocusChange = onControlFocus) { hint = "音轨切换暂未开放" }
-                    ActionPill("字幕 · 关", onFocusChange = onControlFocus) { hint = "字幕切换暂未开放" }
+                    ActionPill("画质 · 原画", onFocusChange = onControlFocus) { panel = "quality" }
+                    ActionPill("音轨 · 默认", onFocusChange = onControlFocus) { panel = "audio" }
+                    ActionPill("字幕 · 关", onFocusChange = onControlFocus) { panel = "subtitle" }
                     ActionPill("选集", onFocusChange = onControlFocus) { onBack() }
                     ActionPill(
                         "倍速 · ${String.format(Locale.US, "%.1f", speed)}x",
@@ -428,6 +429,81 @@ fun PlayerScreen(
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
+            }
+        }
+
+        panel?.let { p ->
+            val options = mutableListOf<Pair<String, () -> Unit>>()
+            when (p) {
+                "quality" -> {
+                    val seen = mutableSetOf<String>()
+                    stream?.qualities?.forEachIndexed { idx, q ->
+                        if (seen.add(q.resolution)) {
+                            options += "${q.resolution.uppercase()} · ${q.bitrate / 1000} kbps" to {
+                                scope.launch {
+                                    FnApi.playQuality(curMediaGuid, idx + 1)
+                                    val pos = player.currentPosition
+                                    player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
+                                    player.prepare()
+                                    player.seekTo(pos)
+                                    player.playWhenReady = true
+                                }
+                                panel = null
+                            }
+                        }
+                    }
+                }
+                "audio", "subtitle" -> {
+                    val type = if (p == "audio") {
+                        androidx.media3.common.C.TRACK_TYPE_AUDIO
+                    } else {
+                        androidx.media3.common.C.TRACK_TYPE_TEXT
+                    }
+                    player.currentTracks.groups.filter { it.type == type }.forEach { group ->
+                        for (i in 0 until group.length) {
+                            val format = group.getTrackFormat(i)
+                            val label = format.label ?: format.language ?: "轨道 ${i + 1}"
+                            options += label to {
+                                player.trackSelectionParameters = player.trackSelectionParameters
+                                    .buildUpon()
+                                    .setOverrideForType(
+                                        androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i),
+                                    )
+                                    .build()
+                                panel = null
+                            }
+                        }
+                    }
+                }
+            }
+            Column(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 50.dp)
+                    .width(320.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xE6101826))
+                    .padding(14.dp),
+            ) {
+                Text(
+                    when (p) {
+                        "quality" -> "画质"
+                        "audio" -> "音轨"
+                        else -> "字幕"
+                    },
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(8.dp))
+                if (options.isEmpty()) {
+                    Text("暂无可选项", color = Color(0xFF9FB0C7), fontSize = 11.sp)
+                }
+                options.forEach { (label, action) ->
+                    ActionPill(label) { action() }
+                }
+                Spacer(Modifier.height(6.dp))
+                ActionPill("关闭") { panel = null }
             }
         }
     }

@@ -70,6 +70,8 @@ data class PlayInfo(
     val duration: Long,
 )
 
+data class Quality(val resolution: String, val bitrate: Long)
+
 data class StreamInfo(
     val videoCodec: String,
     val width: Int,
@@ -88,6 +90,7 @@ data class StreamInfo(
     val colorTransfer: String,
     val audioSampleRate: String,
     val audioLanguage: String,
+    val qualities: List<Quality> = emptyList(),
 )
 
 data class Person(
@@ -449,6 +452,12 @@ object FnApi {
             colorTransfer = video?.optString("color_transfer").orEmpty(),
             audioSampleRate = audio?.optString("sample_rate").orEmpty(),
             audioLanguage = audio?.optString("language").orEmpty(),
+            qualities = data.optJSONArray("qualities")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val q = arr.optJSONObject(i) ?: return@mapNotNull null
+                    Quality(q.optString("resolution"), q.optLong("bitrate"))
+                }
+            } ?: emptyList(),
         )
     }
 
