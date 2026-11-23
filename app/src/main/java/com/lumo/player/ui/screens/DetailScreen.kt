@@ -63,6 +63,7 @@ object LastPlayed {
     var episodeGuid: String? = null
     var seasonGuid: String? = null
     var seriesGuid: String? = null
+    var episodeItem: MediaItem? = null
 }
 
 object DetailRefresh {
@@ -343,6 +344,8 @@ fun DetailScreen(    item: MediaItem,
                                                     LastPlayed.episodeGuid = info.guid
                                                     LastPlayed.seasonGuid = selectedSeasonGuid
                                                     LastPlayed.seriesGuid = detail?.guid ?: item.guid
+                                                    LastPlayed.episodeItem =
+                                                        episodes.firstOrNull { it.guid == info.guid } ?: currentEpisode
                                                     onPlay(
                                                         detail?.title ?: item.displayTitle,
                                                         info.guid,

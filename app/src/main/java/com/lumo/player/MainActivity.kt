@@ -28,6 +28,7 @@ import com.lumo.player.ui.screens.DetailRefresh
 import com.lumo.player.ui.screens.DetailScreen
 import com.lumo.player.ui.screens.HomeScreen
 import com.lumo.player.ui.screens.LibraryScreen
+import com.lumo.player.ui.screens.LastPlayed
 import com.lumo.player.ui.screens.LoginScreen
 import com.lumo.player.ui.screens.PlayerScreen
 import com.lumo.player.ui.screens.SearchScreen
@@ -66,9 +67,22 @@ fun AppRoot(loggedIn: Boolean) {
         mutableStateListOf<Screen>(if (loggedIn) Screen.Home else Screen.Login)
     }
 
+    fun closePlayer() {
+        DetailRefresh.token += 1
+        if (stack.lastOrNull() is Screen.Player) stack.removeAt(stack.lastIndex)
+        val played = LastPlayed.episodeItem
+        if (played != null) {
+            if (stack.lastOrNull() is Screen.Detail) stack.removeAt(stack.lastIndex)
+            stack.add(Screen.Detail(played))
+        }
+    }
+
     BackHandler(enabled = stack.size > 1) {
-        if (stack.last() is Screen.Player) DetailRefresh.token += 1
-        stack.removeAt(stack.lastIndex)
+        if (stack.last() is Screen.Player) {
+            closePlayer()
+        } else {
+            stack.removeAt(stack.lastIndex)
+        }
     }
 
     Box(
@@ -115,10 +129,7 @@ fun AppRoot(loggedIn: Boolean) {
                     title = screen.title,
                     mediaGuid = screen.mediaGuid,
                     itemGuid = screen.itemGuid,
-                    onBack = {
-                        DetailRefresh.token += 1
-                        stack.removeAt(stack.lastIndex)
-                    },
+                    onBack = { closePlayer() },
                 )
 
                 Screen.Search -> SearchScreen(
