@@ -85,9 +85,11 @@ fun PlayerScreen(
     var hint by remember { mutableStateOf("") }
     var interactionTick by remember { mutableIntStateOf(0) }
     var controlFocused by remember { mutableStateOf(false) }
-    var speedBps by remember { mutableLongStateOf(0L) }
-    var prevEpisode by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
-    var nextEpisode by remember { mutableStateOf<com.lumo.player.data.MediaItem?>(null) }
+    var speedMb by remember { mutableStateOf(0.0) }
+    var episodes by remember { mutableStateOf<List<com.lumo.player.data.MediaItem>>(emptyList()) }
+    var epIndex by remember { mutableIntStateOf(-1) }
+    val prevEpisode = episodes.getOrNull(epIndex - 1)
+    val nextEpisode = episodes.getOrNull(epIndex + 1)
     var curItemGuid by remember { mutableStateOf(itemGuid) }
     var curMediaGuid by remember { mutableStateOf(mediaGuid) }
     var ended by remember { mutableStateOf(false) }
@@ -107,11 +109,8 @@ fun PlayerScreen(
                 episodeLabel = if (d.title.isNotEmpty()) "$code · ${d.title}" else code
                 val season = com.lumo.player.data.FnApi.itemDetail(d.parentGuid)
                 val eps = com.lumo.player.data.FnApi.episodes(season.guid)
-                val idx = eps.indexOfFirst { it.guid == itemGuid }
-                if (idx >= 0) {
-                    prevEpisode = eps.getOrNull(idx - 1)
-                    nextEpisode = eps.getOrNull(idx + 1)
-                }
+                episodes = eps
+                epIndex = eps.indexOfFirst { it.guid == itemGuid }
             }
         }
     }
@@ -120,6 +119,7 @@ fun PlayerScreen(
         runCatching { com.lumo.player.data.FnApi.playInfo(ep.guid) }.onSuccess { info ->
             curItemGuid = info.guid
             curMediaGuid = info.mediaGuid
+            epIndex = episodes.indexOfFirst { it.guid == ep.guid }
             player.setMediaItem(ExoMediaItem.fromUri(com.lumo.player.data.FnApi.playUrl(info.mediaGuid)))
             player.prepare()
             player.playWhenReady = true
@@ -211,7 +211,7 @@ fun PlayerScreen(
             playing = player.isPlaying
             position = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.coerceAtLeast(0L)
-            speedBps = speedState.bps
+            speedMb = speedState.mbps
             delay(500)
         }
     }
@@ -312,7 +312,7 @@ fun PlayerScreen(
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
-                    String.format(Locale.US, "%.1f Mbps", speedBps / 1_000_000.0),
+                    String.format(Locale.US, "%.1f MB/s", speedMb),
                     color = Color(0xFF9FB0C7),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(end = 10.dp),
@@ -493,23 +493,40 @@ private fun formatTime(millis: Long): String {
 }
 
 private fun buildPlayer(context: Context, speed: SpeedState): ExoPlayer {
-    val dataSourceFactory = DefaultDataSource.Factory(
-        context,
-        OkHttpDataSource.Factory(FnApi.httpClient()),
-    )
-    val meter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context).build()
-    meter.addEventListener(android.os.Handler(android.os.Looper.getMainLooper())) { _, _, bitrate ->
-        speed.bps = bitrate
-    }
+    val okHttp = OkHttpDataSource.Factory(FnApi.httpClient())
+        .setTransferListener(object : androidx.media3.datasource.TransferListener {
+            override fun onTransferInitializing(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = Unit
+            override fun onTransferStart(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = Unit
+            override fun onBytesTransferred(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean, byteCount: Int) {
+                if (isNetwork) speed.add(byteCount.toLong())
+            }
+            override fun onTransferEnd(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = Unit
+        })
+    val dataSourceFactory = DefaultDataSource.Factory(context, okHttp)
     val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context)
         .setEnableDecoderFallback(true)
     return ExoPlayer.Builder(context, renderersFactory)
         .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-        .setBandwidthMeter(meter)
         .build()
 }
 
 class SpeedState {
+    private var bytes = 0L
+    private var last = System.currentTimeMillis()
+
     @Volatile
-    var bps: Long = 0L
+    var mbps: Double = 0.0
+
+    fun add(count: Long) {
+        synchronized(this) {
+            bytes += count
+            val now = System.currentTimeMillis()
+            val dt = now - last
+            if (dt >= 400) {
+                mbps = bytes / 1048576.0 / (dt / 1000.0)
+                bytes = 0L
+                last = now
+            }
+        }
+    }
 }
