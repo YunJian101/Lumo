@@ -80,7 +80,13 @@ data class AudioTrack(
     val title: String = "",
 )
 
-data class SubtitleTrack(val guid: String, val language: String, val title: String)
+data class SubtitleTrack(
+    val guid: String,
+    val language: String,
+    val title: String,
+    val isExternal: Boolean = false,
+    val forced: Boolean = false,
+)
 
 data class StreamInfo(
     val videoCodec: String,
@@ -579,6 +585,8 @@ object FnApi {
                         guid = s.optString("guid"),
                         language = s.optString("language"),
                         title = s.optString("title"),
+                        isExternal = s.optInt("is_external") == 1,
+                        forced = s.optInt("forced") == 1,
                     )
                 }
             } ?: emptyList(),

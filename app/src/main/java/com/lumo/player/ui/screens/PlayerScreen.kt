@@ -835,11 +835,19 @@ private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Bool
 
 private fun formatSubtitleLabel(t: com.lumo.player.data.SubtitleTrack): String {
     val title = t.title.trim()
-    val lang = t.language.trim()
-    if (title.isNotEmpty()) {
-        return mapSubtitleLanguage(title) ?: title
+    val lang = mapSubtitleLanguage(t.language) ?: mapSubtitleLanguage(title)
+    val base = when {
+        title.contains("双语") -> "中英双语"
+        lang != null -> lang
+        title.isNotEmpty() -> title
+        else -> "未命名字幕"
     }
-    return mapSubtitleLanguage(lang) ?: lang.ifEmpty { "未命名字幕" }
+    val kind = when {
+        t.forced -> "强制"
+        t.isExternal -> "外挂"
+        else -> "内嵌"
+    }
+    return "$base · $kind"
 }
 
 private fun mapSubtitleLanguage(value: String): String? {
