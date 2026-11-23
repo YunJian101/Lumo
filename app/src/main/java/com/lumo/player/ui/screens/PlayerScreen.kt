@@ -835,22 +835,29 @@ private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Bool
 
 private fun formatSubtitleLabel(t: com.lumo.player.data.SubtitleTrack): String {
     val title = t.title.trim()
-    val raw = (title + "." + t.language).lowercase()
-    val tokens = raw.split('.', '_', '-', ' ')
-    fun has(vararg keys: String) = keys.any { k -> tokens.any { it == k } }
-    if (raw.contains("双语")) return "中英双语"
-    if (has("cc") || raw.contains("cc")) return "CC 字幕"
-    if (has("zh", "cn", "chs", "hans", "zhcn") || raw.contains("zh-cn") || raw.contains("简体")) return "简体中文"
-    if (has("tw", "cht", "hant") || raw.contains("zh-tw") || raw.contains("繁体")) return "繁体中文"
-    if (has("en", "eng")) return "英语"
-    if (has("ja", "jpn")) return "日语"
-    if (has("ko", "kor")) return "韩语"
-    if (has("fr", "fra", "fre")) return "法语"
-    if (has("de", "deu", "ger")) return "德语"
-    if (has("es", "spa")) return "西班牙语"
-    if (has("ru", "rus")) return "俄语"
-    if (title.isNotEmpty() && title.any { it.code > 127 }) return title
-    return "字幕"
+    val lang = t.language.trim()
+    if (title.isNotEmpty()) {
+        return mapSubtitleLanguage(title) ?: title
+    }
+    return mapSubtitleLanguage(lang) ?: lang.ifEmpty { "未命名字幕" }
+}
+
+private fun mapSubtitleLanguage(value: String): String? {
+    val s = value.trim().lowercase().replace('_', '-')
+    if (s.isEmpty() || s == "und") return null
+    return when {
+        s.contains("双语") -> "中英双语"
+        s == "zh-cn" || s == "zh" || s == "chs" || s == "zh-hans" || s == "cn" -> "简体中文"
+        s == "zh-tw" || s == "cht" || s == "zh-hant" || s == "tw" -> "繁体中文"
+        s == "en" || s == "eng" || s.startsWith("en-") -> "英语"
+        s == "ja" || s == "jpn" -> "日语"
+        s == "ko" || s == "kor" -> "韩语"
+        s == "fr" || s == "fra" || s == "fre" -> "法语"
+        s == "de" || s == "deu" || s == "ger" -> "德语"
+        s == "es" || s == "spa" -> "西班牙语"
+        s == "ru" || s == "rus" -> "俄语"
+        else -> null
+    }
 }
 
 private fun formatTime(millis: Long): String {
