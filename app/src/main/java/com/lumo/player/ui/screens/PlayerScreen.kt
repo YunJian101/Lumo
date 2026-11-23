@@ -120,6 +120,8 @@ fun PlayerScreen(
             curItemGuid = info.guid
             curMediaGuid = info.mediaGuid
             epIndex = episodes.indexOfFirst { it.guid == ep.guid }
+            LastPlayed.episodeGuid = ep.guid
+            LastPlayed.episodeItem = ep
             player.setMediaItem(ExoMediaItem.fromUri(com.lumo.player.data.FnApi.playUrl(info.mediaGuid)))
             player.prepare()
             player.playWhenReady = true
