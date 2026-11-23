@@ -545,9 +545,9 @@ fun PlayerScreen(
                             val label = if (q.resolution.contains("k", true)) {
                                 q.resolution.uppercase()
                             } else {
-                                q.resolution + "p"
+                                q.resolution.uppercase() + "P"
                             }
-                            options += "$label · ${q.bitrate / 1000} kbps" to {
+                            options += label to {
                                 scope.launch {
                                     val s = stream
                                     if (s != null) {
@@ -610,7 +610,7 @@ fun PlayerScreen(
                 "subtitle" -> {
                     val s = stream
                     s?.subtitleTracks?.forEach { t ->
-                        val label = t.title.ifEmpty { t.language.ifEmpty { "字幕" } }
+                        val label = formatSubtitleLabel(t)
                         options += label to {
                             scope.launch {
                                 val link = FnApi.playWithTracks(curMediaGuid, s.videoGuid, s.audioGuid, t.guid)
@@ -687,9 +687,8 @@ fun PlayerScreen(
                         "quality" -> label == qualityLabel
                         else -> false
                     }
-                    ActionPill(label, selected = selected) { action() }
+                    PanelRow(label, selected) { action() }
                 }
-                Spacer(Modifier.height(6.dp))
             }
         }
     }
@@ -719,6 +718,32 @@ private fun ControlCircle(
         contentAlignment = Alignment.Center,
     ) {
         Text(label, color = Color.White, fontSize = if (big) 20.sp else 12.sp)
+    }
+}
+
+@Composable
+private fun PanelRow(text: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .focusGlow(focused, 12.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                when {
+                    focused -> com.lumo.player.ui.FnColors.Accent.copy(alpha = 0.85f)
+                    selected -> com.lumo.player.ui.FnColors.Accent.copy(alpha = 0.35f)
+                    else -> Color(0x33FFFFFF)
+                },
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(text, color = Color(0xFFE7EEF8), fontSize = 13.sp, maxLines = 1)
     }
 }
 
@@ -792,6 +817,24 @@ private fun formatAudioLabel(a: com.lumo.player.data.AudioTrack, isDefault: Bool
         append(lang).append(" · ").append(codec).append(" · ").append(ch)
         if (isDefault) append(" · 默认")
     }
+}
+
+private fun formatSubtitleLabel(t: com.lumo.player.data.SubtitleTrack): String {
+    val title = t.title.trim()
+    val lang = t.language.trim().lowercase()
+    if (title.contains("双语")) return "中英双语"
+    if (title.equals("cc", true)) return "CC 字幕"
+    val base = when {
+        title.isNotEmpty() && !title.equals(lang, true) -> title
+        lang.startsWith("zh-cn") || lang.startsWith("zh-hans") || lang == "zh" -> "简体中文"
+        lang.startsWith("zh-tw") || lang.startsWith("zh-hant") -> "繁体中文"
+        lang.startsWith("en") -> "英语"
+        lang.startsWith("ja") -> "日语"
+        lang.startsWith("ko") -> "韩语"
+        lang.startsWith("und") || lang.isEmpty() -> "字幕"
+        else -> lang.uppercase()
+    }
+    return base
 }
 
 private fun formatTime(millis: Long): String {
