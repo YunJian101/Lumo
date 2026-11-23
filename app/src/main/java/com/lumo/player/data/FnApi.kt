@@ -91,6 +91,8 @@ data class StreamInfo(
     val audioSampleRate: String,
     val audioLanguage: String,
     val qualities: List<Quality> = emptyList(),
+    val videoGuid: String = "",
+    val audioGuid: String = "",
 )
 
 data class Person(
@@ -284,23 +286,46 @@ object FnApi {
         return result?.optInt("code") == 0
     }
 
-    suspend fun resetQuality(
+    suspend fun playLink(
+        itemGuid: String,
         mediaGuid: String,
+        videoGuid: String,
+        audioGuid: String,
+        subtitleGuid: String = "",
+    ): String? {
+        val body = JSONObject()
+            .put("item_guid", itemGuid)
+            .put("media_guid", mediaGuid)
+            .put("video_guid", videoGuid)
+            .put("audio_guid", audioGuid)
+            .put("subtitle_guid", subtitleGuid)
+            .toString()
+        val result = runCatching { call("POST", "/v/api/v1/play/play", body) }.getOrNull()
+            ?: return null
+        return result.optJSONObject("data")?.optString("play_link")?.ifEmpty { null }
+    }
+
+    suspend fun resetQuality(
+        itemGuid: String,
+        mediaGuid: String,
+        videoGuid: String,
+        audioGuid: String,
         resolution: String,
         bitrate: Long,
         startTimestamp: Long,
     ): Boolean {
+        val link = playLink(itemGuid, mediaGuid, videoGuid, audioGuid) ?: return false
         val body = JSONObject()
             .put("req", "media.resetQuality")
             .put("reqid", "1234567890ABCDEF2s")
-            .put("playLink", playUrl(mediaGuid))
+            .put("playLink", link)
             .put("quality", JSONObject().put("resolution", resolution).put("bitrate", bitrate))
             .put("startTimestamp", startTimestamp)
             .put("clearCache", true)
             .toString()
-        val result = runCatching { call("POST", "/v/api/v1/media/play", body) }.getOrNull()
+        val result = runCatching { call("POST", "/v/api/v1/media/p", body) }.getOrNull()
             ?: return false
-        return result.optInt("code") == 0
+        return result.optJSONObject("data")?.optString("result") == "succ"
     }
 
     suspend fun playHistory(): List<MediaItem> {
@@ -477,6 +502,8 @@ object FnApi {
                     Quality(q.optString("resolution"), q.optLong("bitrate"))
                 }
             } ?: emptyList(),
+            videoGuid = video?.optString("guid").orEmpty(),
+            audioGuid = audio?.optString("guid").orEmpty(),
         )
     }
 

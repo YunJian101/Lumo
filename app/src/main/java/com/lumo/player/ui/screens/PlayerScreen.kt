@@ -441,18 +441,36 @@ fun PlayerScreen(
                         if (seen.add(q.resolution)) {
                             options += "${q.resolution.uppercase()} · ${q.bitrate / 1000} kbps" to {
                                 scope.launch {
-                                    val ok = FnApi.resetQuality(
+                                    val s = stream
+                                    val ok = s != null && FnApi.resetQuality(
+                                        curItemGuid,
                                         curMediaGuid,
+                                        s.videoGuid,
+                                        s.audioGuid,
                                         q.resolution,
                                         q.bitrate,
                                         player.currentPosition / 1000,
                                     )
-                                    if (ok) {
-                                        val pos = player.currentPosition
-                                        player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
-                                        player.prepare()
-                                        player.seekTo(pos)
-                                        player.playWhenReady = true
+                                    if (ok && s != null) {
+                                        val link = FnApi.playLink(
+                                            curItemGuid,
+                                            curMediaGuid,
+                                            s.videoGuid,
+                                            s.audioGuid,
+                                        )
+                                        if (link != null) {
+                                            val pos = player.currentPosition
+                                            player.setMediaItem(
+                                                ExoMediaItem.fromUri(
+                                                    FnApi.host.trimEnd('/') + link,
+                                                ),
+                                            )
+                                            player.prepare()
+                                            player.seekTo(pos)
+                                            player.playWhenReady = true
+                                        } else {
+                                            hint = "获取转码流失败"
+                                        }
                                     } else {
                                         hint = "画质切换失败"
                                     }
