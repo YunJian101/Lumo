@@ -89,6 +89,8 @@ fun PlayerScreen(
     var panel by remember { mutableStateOf<String?>(null) }
     var qualityLabel by remember { mutableStateOf("原画") }
     var activeRes by remember { mutableStateOf("") }
+    var audioLabel by remember { mutableStateOf("默认") }
+    var subtitleLabel by remember { mutableStateOf("关") }
     var selectedQuality by remember { mutableStateOf<com.lumo.player.data.Quality?>(null) }
     var retryOnce by remember { mutableStateOf(false) }
     var liveVideo by remember { mutableStateOf("") }
@@ -478,8 +480,8 @@ fun PlayerScreen(
                         }
                     }
                     ActionPill("画质 · $qualityLabel", onFocusChange = onControlFocus) { panel = "quality" }
-                    ActionPill("音轨 · 默认", onFocusChange = onControlFocus) { panel = "audio" }
-                    ActionPill("字幕 · 关", onFocusChange = onControlFocus) { panel = "subtitle" }
+                    ActionPill("音轨 · $audioLabel", onFocusChange = onControlFocus) { panel = "audio" }
+                    ActionPill("字幕 · $subtitleLabel", onFocusChange = onControlFocus) { panel = "subtitle" }
                     ActionPill("选集", onFocusChange = onControlFocus) { onBack() }
                     ActionPill(
                         "倍速 · ${String.format(Locale.US, "%.1f", speed)}x",
@@ -518,6 +520,7 @@ fun PlayerScreen(
                         qualityLabel = "原画"
                         activeRes = ""
                         selectedQuality = null
+                        hint = ""
                         val pos = player.currentPosition
                         player.setMediaItem(ExoMediaItem.fromUri(FnApi.playUrl(curMediaGuid)))
                         player.prepare()
@@ -552,6 +555,7 @@ fun PlayerScreen(
                                             qualityLabel = label
                                             activeRes = label
                                             selectedQuality = q
+                                            hint = ""
                                             val pos = player.currentPosition
                                             player.setMediaItem(
                                                 ExoMediaItem.fromUri(FnApi.host.trimEnd('/') + link),
@@ -582,10 +586,16 @@ fun PlayerScreen(
                             options += label to {
                                 player.trackSelectionParameters = player.trackSelectionParameters
                                     .buildUpon()
+                                    .setTrackTypeDisabled(type, false)
                                     .setOverrideForType(
                                         androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, i),
                                     )
                                     .build()
+                                if (type == androidx.media3.common.C.TRACK_TYPE_AUDIO) {
+                                    audioLabel = label
+                                } else {
+                                    subtitleLabel = label
+                                }
                                 panel = null
                             }
                         }
@@ -617,6 +627,16 @@ fun PlayerScreen(
                 }
                 options.forEach { (label, action) ->
                     ActionPill(label) { action() }
+                }
+                if (p == "subtitle") {
+                    ActionPill("关闭字幕") {
+                        player.trackSelectionParameters = player.trackSelectionParameters
+                            .buildUpon()
+                            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+                            .build()
+                        subtitleLabel = "关"
+                        panel = null
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 ActionPill("关闭") { panel = null }
